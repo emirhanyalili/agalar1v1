@@ -1,0 +1,2561 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>1v1 Taktik Draft - 5 Lig & Canlı Multiplayer (4-3-3)</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Phosphor Icons for UI accents -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <!-- Tone.js for tactile sound effects -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+  <!-- Universal Real-time WebSocket Broker (CGNAT & PC-to-PC Firewall Immune) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.3.5/mqtt.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            pitch: '#0f291e',
+            pitchLine: 'rgba(255, 255, 255, 0.15)',
+            p1: '#3b82f6',
+            p2: '#ef4444',
+            joker: '#f59e0b'
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .pitch-board {
+      background: radial-gradient(circle at center, #1b4d36 0%, #0e2b1d 75%, #071710 100%);
+      position: relative;
+      box-shadow: inset 0 0 50px rgba(0,0,0,0.6);
+    }
+    .pitch-line {
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+    .slot-glow-target {
+      box-shadow: 0 0 18px rgba(16, 185, 129, 0.8);
+      border-color: #10b981 !important;
+      animation: pulseTarget 1.2s infinite alternate;
+    }
+    .slot-glow-joker {
+      box-shadow: 0 0 18px rgba(245, 158, 11, 0.85);
+      border-color: #f59e0b !important;
+      animation: pulseTarget 1.5s infinite alternate;
+    }
+    @keyframes pulseTarget {
+      from { transform: scale(1); }
+      to { transform: scale(1.04); }
+    }
+  </style>
+</head>
+<body class="bg-neutral-950 text-neutral-100 font-sans min-h-screen flex flex-col justify-between selection:bg-emerald-500 selection:text-black">
+
+  <!-- MAIN MENU SCREEN (AÇILIŞ MENÜSÜ) -->
+  <div id="mainMenuScreen" class="fixed inset-0 z-50 bg-neutral-950 flex flex-col justify-between p-4 sm:p-6 overflow-y-auto">
+    <div class="max-w-xl mx-auto w-full flex-1 flex flex-col justify-center items-center text-center">
+      
+      <!-- Logo & Title -->
+      <div class="inline-flex p-4 rounded-3xl bg-gradient-to-br from-emerald-500/20 to-neutral-900 border border-emerald-500/30 text-emerald-400 mb-4 shadow-2xl shadow-emerald-950">
+        <i class="ph-bold ph-strategy text-5xl"></i>
+      </div>
+      <h1 class="text-3xl sm:text-4xl font-black text-white tracking-tight">
+        1v1 TAKTİK DRAFT
+      </h1>
+      <p class="text-sm text-neutral-400 mt-2 max-w-md">
+        5 Efsane Lig &bull; 4-3-3 Taktik Dizilişi &bull; 3 Teklif & Opsiyonel Joker Takası &bull; Maç Simülasyonu
+      </p>
+
+      <!-- Connection Status indicator -->
+      <div id="lobbyNotice" class="text-xs px-3 py-1.5 rounded-full bg-neutral-900 border border-neutral-800 text-neutral-400 mt-4 flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span>Online Çok Oyunculu Altyapısı Aktif</span>
+      </div>
+
+      <!-- Action Cards -->
+      <div class="grid grid-cols-1 gap-3.5 w-full mt-6 text-left">
+        
+        <!-- Button 1: Create Room (Online) -->
+        <button onclick="openHostConceptSelectModal()" class="group p-4 sm:p-5 rounded-2xl bg-neutral-900 hover:bg-neutral-800/90 border border-emerald-500/40 hover:border-emerald-400 transition-all shadow-xl flex items-center justify-between">
+          <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-2xl group-hover:scale-105 transition">
+              <i class="ph-bold ph-broadcast"></i>
+            </div>
+            <div>
+              <div class="text-base font-bold text-white flex items-center gap-2">
+                Oda Kur (1v1 Canlı)
+                <span class="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded font-mono">1. Oyuncu</span>
+              </div>
+              <div class="text-xs text-neutral-400">Ligini seç, oda kodunu oluştur ve arkadaşını davet et.</div>
+            </div>
+          </div>
+          <i class="ph-bold ph-arrow-right text-neutral-400 group-hover:text-emerald-400 transition text-lg"></i>
+        </button>
+
+        <!-- Button 2: Join Room (Online) -->
+        <div class="p-4 sm:p-5 rounded-2xl bg-neutral-900 border border-neutral-800 flex flex-col gap-3">
+          <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center text-2xl">
+              <i class="ph-bold ph-sign-in"></i>
+            </div>
+            <div>
+              <div class="text-base font-bold text-white flex items-center gap-2">
+                Arkadaşının Odasına Katıl
+                <span class="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded font-mono">2. Oyuncu</span>
+              </div>
+              <div class="text-xs text-neutral-400">Arkadaşının sana yolladığı 6 haneli kodu buraya gir.</div>
+            </div>
+          </div>
+
+          <div class="flex gap-2 mt-1">
+            <input id="roomCodeInput" type="text" maxlength="8" placeholder="Örn: TR-4921" class="flex-1 bg-neutral-950 border border-neutral-700 focus:border-blue-500 rounded-xl px-4 py-3 text-center text-sm font-mono tracking-widest text-white uppercase placeholder:text-neutral-600 focus:outline-none">
+            <button onclick="handleMenuJoinRoom()" class="px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm flex items-center gap-2 transition active:scale-95 shadow-lg shadow-blue-950">
+              <i class="ph-bold ph-link"></i>
+              <span>Katıl</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Button 3: Local 1v1 (Same Device) -->
+        <button onclick="handleMenuStartLocal()" class="group p-4 rounded-2xl bg-neutral-900/60 hover:bg-neutral-800 border border-neutral-800 hover:border-neutral-700 transition flex items-center justify-between">
+          <div class="flex items-center gap-3.5">
+            <div class="w-10 h-10 rounded-xl bg-neutral-800 text-neutral-300 flex items-center justify-center text-xl">
+              <i class="ph-bold ph-device-mobile"></i>
+            </div>
+            <div>
+              <div class="text-sm font-bold text-white">Aynı Cihazda Yan Yana Oyna</div>
+              <div class="text-xs text-neutral-400">İnternet bağlantısı olmadan tek ekrandan sırayla oynayın.</div>
+            </div>
+          </div>
+          <i class="ph-bold ph-play text-neutral-400 text-base"></i>
+        </button>
+
+      </div>
+    </div>
+
+    <!-- Footer of menu -->
+    <div class="text-center text-neutral-600 text-xs py-2">
+      1v1 Serbest Taktik Draft &bull; WebRTC Canlı Eşzamanlama
+    </div>
+  </div>
+
+  <!-- HOST CONCEPT SELECTION MODAL (ODA KURMADAN ÖNCE LİG SEÇİMİ) -->
+  <div id="hostConceptSelectModal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="bg-neutral-900 border border-emerald-500/60 rounded-2xl max-w-lg w-full p-5 sm:p-6 text-center shadow-2xl relative">
+      <div class="w-12 h-12 bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto mb-2 text-2xl border border-emerald-500/30">
+        <i class="ph-bold ph-trophy"></i>
+      </div>
+      <h3 class="text-xl font-black text-white">Hangi Ligle Oynayacaksınız?</h3>
+      <p class="text-xs text-neutral-400 mt-1 mb-4">Lobi kurulmadan önce oynamak istediğin ligi seç veya kura çek:</p>
+
+      <!-- Rastgele Kura Çek Butonu -->
+      <button id="spinHostKuraBtn" onclick="runHostConceptLottery()" class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 text-neutral-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-950 transition active:scale-98 mb-3">
+        <i class="ph-bold ph-dice-five text-lg"></i>
+        <span id="hostKuraBtnText">Rastgele Lig Kurası Çek!</span>
+      </button>
+
+      <div class="relative flex py-1.5 items-center">
+        <div class="flex-grow border-t border-neutral-800"></div>
+        <span class="flex-shrink mx-3 text-neutral-500 text-[10px] uppercase tracking-wider font-semibold">veya doğrudan birini seç</span>
+        <div class="flex-grow border-t border-neutral-800"></div>
+      </div>
+
+      <!-- 5 Lig Kartı -->
+      <div id="hostConceptGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mt-2.5 text-left"></div>
+
+      <div class="mt-4 pt-2 border-t border-neutral-800">
+        <button onclick="closeHostConceptSelectModal()" class="text-xs text-neutral-400 hover:text-neutral-200">
+          Vazgeç & Menüye Dön
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- WAITING ROOM MODAL (HOST BEKLEME EKRANI) -->
+  <div id="hostWaitingModal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="bg-neutral-900 border border-emerald-500/60 rounded-2xl max-w-md w-full p-6 text-center shadow-2xl relative">
+      <div class="w-14 h-14 bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto mb-3 text-3xl border border-emerald-500/30">
+        <i class="ph-bold ph-users text-emerald-400 animate-pulse"></i>
+      </div>
+      <h3 class="text-xl font-bold text-white">Arkadaşın Bekleniyor...</h3>
+      <p class="text-xs text-neutral-400 mt-1 mb-2">Bu kodu veya davet bağlantısını rakibine gönder.</p>
+
+      <!-- Seçilen Lig Rozeti -->
+      <div id="hostWaitingConceptBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold mb-4">
+        <i class="ph-bold ph-trophy text-amber-400"></i>
+        <span>Lig: Yükleniyor...</span>
+      </div>
+
+      <div class="bg-neutral-950 p-4 rounded-xl border border-neutral-800 mb-4">
+        <div class="text-xs text-neutral-500 uppercase font-mono tracking-wider mb-1">Oda Kodu</div>
+        <div id="hostRoomCodeDisplay" class="text-3xl font-black text-emerald-400 font-mono tracking-widest select-all">
+          YÜKLENİYOR...
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <button id="copyInviteLinkBtn" onclick="copyInviteLink()" class="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition active:scale-95 shadow">
+          <i class="ph-bold ph-copy"></i>
+          <span>Davet Bağlantısını Kopyala</span>
+        </button>
+        <button onclick="cancelHostingAndReturnMenu()" class="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-semibold">
+          Vazgeç & Menüye Dön
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toastNotification" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none transition-all duration-300 opacity-0 transform -translate-y-4">
+    <div id="toastContent" class="bg-neutral-900/95 border border-amber-500/80 text-amber-300 px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2 text-xs font-semibold backdrop-blur-md">
+      <i class="ph-fill ph-swap text-amber-400 text-lg"></i>
+      <span id="toastMessage">Değişiklik yapıldı</span>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header class="border-b border-neutral-800 bg-neutral-900/80 backdrop-blur sticky top-0 z-40 px-4 py-3">
+    <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+      <div class="flex items-center gap-2.5">
+        <button onclick="promptReturnToMenu()" class="p-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-300 hover:text-white transition" title="Ana Menüye Dön">
+          <i class="ph-bold ph-house text-lg"></i>
+        </button>
+        <div>
+          <h1 class="text-base font-bold tracking-tight text-white flex items-center gap-2">
+            1v1 Taktik Draft 
+            <span id="activeConceptBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-medium flex items-center gap-1">
+              <i class="ph-bold ph-trophy"></i> Premier Lig
+            </span>
+          </h1>
+          <div class="flex items-center gap-2 text-[11px] text-neutral-400">
+            <span id="connectionModeBadge" class="text-emerald-400 font-medium flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Yerel Mod
+            </span>
+            <span class="hidden sm:inline">&bull; 4-3-3 Dizilişi</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Turn & Phase Badge -->
+      <div id="statusBadge" class="flex items-center gap-3 bg-neutral-800/80 border border-neutral-700/60 rounded-xl px-3.5 py-1.5 shadow-sm">
+        <div class="flex items-center gap-2 text-sm font-semibold">
+          <span id="turnIndicatorDot" class="w-3 h-3 rounded-full bg-blue-500 animate-ping"></span>
+          <span id="turnLabel" class="text-neutral-200">Sıra: <span class="text-blue-400 font-bold">1. Oyuncu</span></span>
+        </div>
+        <div class="h-4 w-px bg-neutral-700"></div>
+        <div id="positionTrack" class="text-xs font-mono font-medium text-emerald-400">
+          Kadro: <span id="squadProgress">0/11</span>
+        </div>
+      </div>
+
+      <!-- Controls: Concept change, audio, reset -->
+      <div class="flex items-center gap-2">
+        <button id="viewSummaryHeaderBtn" onclick="showSummaryModal()" class="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition text-xs flex items-center gap-1.5 shadow hidden" title="Sonuç Kadrolarını Gör">
+          <i class="ph-bold ph-trophy"></i>
+          <span>Kadroları Gör</span>
+        </button>
+        <button id="simHeaderBtn" onclick="triggerMatchSimulation()" class="px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-neutral-950 font-black transition text-xs flex items-center gap-1.5 shadow-lg shadow-amber-950 animate-pulse hidden" title="Büyük Maçı Simüle Et">
+          <i class="ph-bold ph-lightning text-sm"></i>
+          <span>Maçı Simüle Et</span>
+        </button>
+        <button id="conceptChangeBtn" onclick="openConceptModal()" class="px-2.5 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-amber-300 transition text-xs font-semibold flex items-center gap-1.5 shadow" title="Konsept Değiştir / Kura Çek">
+          <i class="ph-bold ph-dice-five text-base"></i>
+          <span class="hidden md:inline">Konsept / Kura</span>
+        </button>
+        <button id="soundToggleBtn" onclick="toggleSound()" class="p-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-300 transition text-sm flex items-center gap-1.5" title="Ses Aç/Kapat">
+          <i id="soundIcon" class="ph-bold ph-speaker-high text-emerald-400"></i>
+        </button>
+        <button onclick="resetGameModal()" class="p-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-300 hover:text-white transition text-sm flex items-center gap-1.5" title="Yeniden Başlat">
+          <i class="ph-bold ph-arrows-clockwise"></i>
+          <span class="hidden md:inline">Sıfırla</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto w-full p-3 sm:p-5 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+    
+    <!-- Left Column: 4-3-3 Pitch (7 Cols) -->
+    <div class="lg:col-span-7 flex flex-col gap-3">
+      <!-- Pitch Header Selector -->
+      <div class="flex items-center justify-between bg-neutral-900 border border-neutral-800 rounded-xl p-1.5">
+        <div class="grid grid-cols-2 gap-1.5 flex-1">
+          <button id="tabP1Btn" onclick="switchPitchView('p1')" class="py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition bg-blue-600 text-white shadow">
+            <span class="w-2.5 h-2.5 rounded-full bg-blue-300"></span>
+            1. Oyuncu Sahası (<span id="p1Count">0</span>/11)
+          </button>
+          <button id="tabP2Btn" onclick="switchPitchView('p2')" class="py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition text-neutral-400 hover:text-neutral-200">
+            <span class="w-2.5 h-2.5 rounded-full bg-red-400"></span>
+            2. Oyuncu Sahası (<span id="p2Count">0</span>/11)
+          </button>
+        </div>
+      </div>
+
+      <!-- Tactical 4-3-3 Pitch Board -->
+      <div class="pitch-board rounded-2xl border-2 border-emerald-900/60 p-4 aspect-[4/5] sm:aspect-[4/3] md:aspect-[16/10] relative flex flex-col justify-between overflow-hidden shadow-2xl select-none">
+        
+        <!-- Pitch Field Markings -->
+        <div class="absolute inset-0 pointer-events-none opacity-40">
+          <div class="absolute top-1/2 left-0 right-0 h-px pitch-line border-t-2"></div>
+          <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-28 h-28 rounded-full pitch-line border-2"></div>
+          <div class="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-20 pitch-line border-b-2 border-x-2 rounded-b-md"></div>
+          <div class="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-8 pitch-line border-b-2 border-x-2"></div>
+          <div class="absolute bottom-0 left-1/2 -translate-x-1/2 w-48 h-20 pitch-line border-t-2 border-x-2 rounded-t-md"></div>
+          <div class="absolute bottom-0 left-1/2 -translate-x-1/2 w-24 h-8 pitch-line border-t-2 border-x-2"></div>
+        </div>
+
+        <!-- Team & Concept Watermark Label on Pitch -->
+        <div class="absolute top-3 right-4 flex flex-col items-end">
+          <div id="pitchWatermark" class="font-black text-2xl uppercase tracking-wider text-white/10 select-none">
+            1. Oyuncu
+          </div>
+          <div id="pitchConceptWatermark" class="text-[11px] font-bold uppercase tracking-widest text-emerald-400/25">
+            Premier Lig
+          </div>
+        </div>
+
+        <!-- Attackers (LW - ST - RW) -->
+        <div class="relative z-10 grid grid-cols-3 gap-2 w-full pt-2">
+          <div id="slot-LW" class="pitch-slot flex flex-col items-center"></div>
+          <div id="slot-ST" class="pitch-slot flex flex-col items-center"></div>
+          <div id="slot-RW" class="pitch-slot flex flex-col items-center"></div>
+        </div>
+
+        <!-- Midfielders (CM1 - CAM - CM2) -->
+        <div class="relative z-10 grid grid-cols-3 gap-2 w-full py-2">
+          <div id="slot-CM1" class="pitch-slot flex flex-col items-center"></div>
+          <div id="slot-CAM" class="pitch-slot flex flex-col items-center -translate-y-2"></div>
+          <div id="slot-CM2" class="pitch-slot flex flex-col items-center"></div>
+        </div>
+
+        <!-- Defenders (LB - CB1 - CB2 - RB) -->
+        <div class="relative z-10 grid grid-cols-4 gap-2 w-full pb-1">
+          <div id="slot-LB" class="pitch-slot flex flex-col items-center"></div>
+          <div id="slot-CB1" class="pitch-slot flex flex-col items-center"></div>
+          <div id="slot-CB2" class="pitch-slot flex flex-col items-center"></div>
+          <div id="slot-RB" class="pitch-slot flex flex-col items-center"></div>
+        </div>
+
+        <!-- Goalkeeper (GK) -->
+        <div class="relative z-10 flex justify-center w-full pb-1">
+          <div id="slot-GK" class="pitch-slot flex flex-col items-center w-28"></div>
+        </div>
+
+        <!-- Joker sub slot indicator badge -->
+        <div id="jokerBadgeSlot" class="absolute bottom-2 left-2 z-20 hidden">
+          <div class="px-2.5 py-1 rounded-md bg-amber-500/20 border border-amber-500/50 text-amber-300 text-xs flex items-center gap-1.5 font-medium shadow-md backdrop-blur-sm">
+            <i class="ph-fill ph-star text-amber-400"></i>
+            <span>Joker Değişikliği: <strong id="jokerAssignedName" class="font-bold text-white">-</strong></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Interactive Random Position Draft Deck (5 Cols) -->
+    <div class="lg:col-span-5 flex flex-col gap-4">
+      
+      <!-- Current Draft Decision Card Box -->
+      <div id="draftCardContainer" class="bg-neutral-900 border border-neutral-800 rounded-2xl p-5 shadow-xl relative overflow-hidden">
+        
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2">
+            <span id="playerBadgePill" class="text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
+              1. Oyuncu Seçiyor
+            </span>
+            <span id="offerCounterPill" class="text-xs font-medium px-2 py-1 rounded bg-neutral-800 text-neutral-300 border border-neutral-700">
+              Teklif: <strong id="offerNumberText" class="text-amber-400">1</strong>/3
+            </span>
+          </div>
+          <span class="text-xs text-neutral-400 font-mono" id="currentRoundInfo">Tur: #1</span>
+        </div>
+
+        <!-- AI Proposed Player Card -->
+        <div id="proposeCard" class="bg-gradient-to-b from-neutral-800/90 to-neutral-900 border border-neutral-700/80 rounded-xl p-5 sm:p-6 text-center my-3 relative shadow-inner">
+          <div class="flex items-center justify-center gap-2 mb-1">
+            <span id="candidatePos" class="text-xs uppercase tracking-widest font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+              SANTRAFOR (ST)
+            </span>
+          </div>
+          
+          <div class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight py-2 font-mono" id="candidateName">
+            -
+          </div>
+          
+          <!-- Position Fit Warning / Status on Player's 4-3-3 -->
+          <div id="slotStatusHint" class="text-xs font-medium flex items-center justify-center gap-1.5 mt-1 text-emerald-400">
+            <i class="ph-bold ph-check-circle"></i>
+            <span>4-3-3 Açık Mevkine Yerleşecek</span>
+          </div>
+
+          <!-- 3-Step Progress Dots -->
+          <div class="flex justify-center items-center gap-2.5 mt-5">
+            <div id="stepDot1" class="w-2.5 h-2.5 rounded-full bg-emerald-400 transition-all scale-125"></div>
+            <div id="stepDot2" class="w-2.5 h-2.5 rounded-full bg-neutral-700 transition-all"></div>
+            <div id="stepDot3" class="w-2.5 h-2.5 rounded-full bg-neutral-700 transition-all"></div>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div id="decisionButtonsArea" class="grid grid-cols-2 gap-3 mt-4">
+          <!-- Pas Geç (Skip) Button -->
+          <button id="skipBtn" onclick="handleSkipOffer()" class="group py-3 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 active:scale-95 text-neutral-200 border border-neutral-700 hover:border-neutral-600 font-semibold flex items-center justify-center gap-2 transition shadow">
+            <i class="ph-bold ph-x-circle text-red-400 group-hover:scale-110 transition"></i>
+            <span>Pas Geç (Alma)</span>
+          </button>
+
+          <!-- Al (Pick) Button -->
+          <button id="pickBtn" onclick="handlePickOffer()" class="group py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-semibold flex items-center justify-center gap-2 transition shadow-lg shadow-emerald-900/40">
+            <i class="ph-bold ph-check-circle text-white group-hover:scale-110 transition"></i>
+            <span>Takıma Al</span>
+          </button>
+        </div>
+
+        <!-- Strategy Notice / Status warnings -->
+        <p id="strategyNotice" class="text-[11px] text-center text-neutral-400 mt-3 font-normal">
+          <i class="ph-bold ph-info inline-block mr-1 text-emerald-400"></i>
+          İlk 2 oyuncuyu pas geçerseniz 3. oyuncuyu almak zorundasınız!
+        </p>
+
+        <!-- Turn Wait Blocker for Remote Player -->
+        <div id="turnWaitBlocker" class="absolute inset-0 bg-neutral-950/85 backdrop-blur-xs z-30 flex flex-col items-center justify-center p-4 text-center hidden">
+          <div class="w-10 h-10 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin mb-3"></div>
+          <div class="text-sm font-bold text-white mb-1">Rakibin Sırası</div>
+          <div id="turnWaitText" class="text-xs text-neutral-400">Rakip oyuncu kart seçimi yapıyor...</div>
+        </div>
+      </div>
+
+      <!-- Joker Phase Panel (OPTIONAL & REPLACES MATCHING POSITION) -->
+      <div id="jokerSelectionPanel" class="hidden bg-gradient-to-b from-amber-950/40 to-neutral-900 border-2 border-amber-500/60 rounded-2xl p-5 shadow-2xl relative">
+        <div class="flex items-center justify-between gap-2 mb-2">
+          <div class="flex items-center gap-2 text-amber-400">
+            <i class="ph-bold ph-crown text-xl"></i>
+            <h2 class="text-sm font-bold uppercase tracking-wider">Joker Aşaması (Opsiyonel)</h2>
+          </div>
+          <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">1 Değişiklik Hakkı</span>
+        </div>
+
+        <p id="jokerPhaseInstruction" class="text-xs text-neutral-300 leading-relaxed mb-3">
+          Rakibinin pas geçtiği havuzdan <span class="text-amber-300 font-bold">1 oyuncu seçerek</span> 11'indeki mevcut oyuncuyla mevkisini değiştirebilirsin veya joker kullanmadan pas geçebilirsin.
+        </p>
+
+        <!-- Skip Joker Button (Explicitly Optional) -->
+        <div class="mb-3">
+          <button id="skipJokerBtn" onclick="skipJokerPhase()" class="w-full py-2.5 px-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-300 hover:text-white text-xs font-bold flex items-center justify-center gap-2 transition shadow">
+            <i class="ph-bold ph-arrow-right"></i>
+            <span>Joker Kullanmak İstemiyorum (Kadroyla Devam Et)</span>
+          </button>
+        </div>
+
+        <div class="text-[11px] uppercase tracking-wider text-neutral-400 font-bold mb-1.5 flex items-center justify-between">
+          <span>Seçilebilir Rakip Adayları</span>
+          <span class="text-[10px] text-neutral-500 font-normal">Mevcut oyuncuyla yer değişir</span>
+        </div>
+
+        <div id="jokerCandidatesList" class="space-y-2 max-h-56 overflow-y-auto pr-1"></div>
+
+        <!-- Joker Wait Blocker -->
+        <div id="jokerWaitBlocker" class="absolute inset-0 bg-neutral-950/85 backdrop-blur-xs z-30 flex flex-col items-center justify-center p-4 text-center hidden">
+          <div class="w-10 h-10 rounded-full border-2 border-amber-500 border-t-transparent animate-spin mb-3"></div>
+          <div class="text-sm font-bold text-white mb-1">Rakibin Joker Sırası</div>
+          <div id="jokerWaitText" class="text-xs text-neutral-400">Rakip oyuncu joker tercihini yapıyor...</div>
+        </div>
+      </div>
+
+      <!-- Discarded Players Tracker ("Pas Geçilenler Havuzu") -->
+      <div class="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-4">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <i class="ph-bold ph-trash text-neutral-400"></i>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-neutral-300">Pas Geçilenler Havuzu</h3>
+          </div>
+          <span id="discardCountBadge" class="text-[11px] font-mono px-2 py-0.5 rounded bg-neutral-800 text-neutral-400 border border-neutral-700">0 Oyuncu</span>
+        </div>
+
+        <p class="text-[11px] text-neutral-400 mb-2">
+          Pas geçilen adaylar burada birikir. Joker aşamasında rakip buradan 1 oyuncu seçip 11'indeki ilgili mevkideki oyuncusuyla değiştirebilir.
+        </p>
+
+        <div id="discardedList" class="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-1 bg-neutral-950/60 rounded-xl border border-neutral-800/80">
+          <span class="text-neutral-500 text-xs italic p-2">Henüz reddedilen oyuncu yok.</span>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- MATCH SIMULATION MODAL (90 DAKİKA CANLI MAÇ SİMÜLASYONU) -->
+  <div id="matchSimulationModal" class="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="bg-neutral-900 border-2 border-amber-500/80 rounded-2xl max-w-2xl w-full p-5 sm:p-7 shadow-2xl relative flex flex-col max-h-[92vh] overflow-hidden">
+      
+      <!-- Stadium Header -->
+      <div class="text-center pb-3 border-b border-neutral-800">
+        <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-bold uppercase tracking-wider mb-2">
+          <i class="ph-fill ph-lightning"></i> Taktik Kapışma Simülasyonu
+        </div>
+        <h3 class="text-xl sm:text-2xl font-black text-white tracking-tight">BÜYÜK MAÇ BAŞLADI</h3>
+      </div>
+
+      <!-- Scoreboard Display -->
+      <div class="grid grid-cols-7 items-center bg-neutral-950 rounded-2xl p-4 my-4 border border-neutral-800 shadow-inner">
+        <!-- Team 1 (Host) -->
+        <div class="col-span-3 text-center">
+          <div class="text-xs uppercase font-extrabold text-blue-400 tracking-wider mb-1">1. Oyuncu</div>
+          <div id="simScore1" class="text-4xl sm:text-5xl font-black text-white font-mono">0</div>
+        </div>
+
+        <!-- Clock & VS -->
+        <div class="col-span-1 text-center flex flex-col items-center">
+          <span class="text-xs font-mono font-bold text-neutral-500">VS</span>
+          <div id="simClock" class="text-sm sm:text-base font-black text-amber-400 font-mono mt-1 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
+            00'
+          </div>
+        </div>
+
+        <!-- Team 2 (Client) -->
+        <div class="col-span-3 text-center">
+          <div class="text-xs uppercase font-extrabold text-red-400 tracking-wider mb-1">2. Oyuncu</div>
+          <div id="simScore2" class="text-4xl sm:text-5xl font-black text-white font-mono">0</div>
+        </div>
+      </div>
+
+      <!-- Live Commentary Box -->
+      <div class="flex-1 bg-neutral-950/70 border border-neutral-800 rounded-xl p-3 overflow-y-auto max-h-48 space-y-2 font-sans" id="simCommentaryLog">
+        <div class="text-xs text-neutral-400 italic text-center py-2">Hakem düdüğü çaldı, maç başladı...</div>
+      </div>
+
+      <!-- Winner Announcement Banner (Hidden until 90') -->
+      <div id="simWinnerBanner" class="mt-3 p-3 rounded-xl bg-gradient-to-r from-amber-500/20 via-emerald-500/20 to-amber-500/20 border border-amber-500/40 text-center hidden">
+        <div class="text-base font-black text-white" id="simWinnerText">MAÇ SONA ERDİ</div>
+        <div class="text-xs text-neutral-300 mt-0.5" id="simWinnerDesc">Taktik ve kadro üstünlüğüyle kazanan taraf kupaya uzandı!</div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex justify-center gap-3 mt-4 pt-3 border-t border-neutral-800">
+        <button id="simCloseBtn" onclick="handleSimCloseRequest()" class="px-5 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-semibold">
+          Kapat & Kadrolara Dön
+        </button>
+        <button id="simReplayBtn" onclick="triggerMatchSimulation()" class="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-neutral-950 font-black text-xs flex items-center gap-2 hidden">
+          <i class="ph-bold ph-arrows-clockwise"></i> Tekrar Simüle Et
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Concept Selection / Kura Modal (Local & Host Change) -->
+  <div id="conceptModal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="bg-neutral-900 border border-emerald-500/60 rounded-2xl max-w-xl w-full p-6 shadow-2xl relative">
+      <div class="text-center mb-5">
+        <div class="w-12 h-12 bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto mb-2 text-2xl border border-emerald-500/30">
+          <i class="ph-bold ph-trophy"></i>
+        </div>
+        <h3 class="text-xl font-bold text-white">Konsept / Lig Belirle</h3>
+        <p class="text-xs text-neutral-400 mt-1">İster 5 ligden birini seç, ister rastgele kura çek!</p>
+      </div>
+
+      <!-- Kura Çek Butonu -->
+      <div class="mb-5">
+        <button id="spinKuraBtn" onclick="runConceptLottery()" class="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 hover:to-amber-500 text-neutral-950 font-black text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-900/30 transition transform active:scale-98">
+          <i class="ph-bold ph-dice-five text-xl"></i>
+          <span id="kuraBtnText">Rastgele Konsept Kurası Çek!</span>
+        </button>
+      </div>
+
+      <div class="relative flex py-2 items-center">
+        <div class="flex-grow border-t border-neutral-800"></div>
+        <span class="flex-shrink mx-3 text-neutral-500 text-[11px] uppercase tracking-wider font-semibold">veya doğrudan seç</span>
+        <div class="flex-grow border-t border-neutral-800"></div>
+      </div>
+
+      <!-- 5 Concept Cards Grid -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mt-3" id="conceptCardsList"></div>
+
+      <div class="mt-5 text-center">
+        <button onclick="closeConceptModal()" class="text-xs text-neutral-400 hover:text-neutral-200 underline">
+          Vazgeç
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Multi-Slot Substitution Modal (for CB1/CB2 or CM1/CM2) -->
+  <div id="subSlotModal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="bg-neutral-900 border border-amber-500/70 rounded-2xl max-w-md w-full p-5 shadow-2xl text-center">
+      <div class="w-12 h-12 bg-amber-500/20 text-amber-400 rounded-2xl flex items-center justify-center mx-auto mb-2 text-2xl border border-amber-500/30">
+        <i class="ph-fill ph-swap"></i>
+      </div>
+      <h3 class="text-lg font-bold text-white mb-1">Hangi Oyuncuyla Değiştirilsin?</h3>
+      <p id="subModalDesc" class="text-xs text-neutral-300 mb-4">
+        Gelen Joker: <span id="subModalJokerName" class="text-amber-400 font-bold"></span>
+      </p>
+
+      <div class="grid grid-cols-2 gap-3 mb-4" id="subModalChoices"></div>
+
+      <button onclick="closeSubModal()" class="text-xs text-neutral-400 hover:text-neutral-200 underline">
+        İptal
+      </button>
+    </div>
+  </div>
+
+  <!-- Summary Modal (End of Draft) -->
+  <div id="summaryModal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 hidden">
+    <div class="bg-neutral-900 border border-neutral-700 rounded-2xl max-w-2xl w-full p-4 sm:p-6 shadow-2xl relative max-h-[92vh] overflow-y-auto flex flex-col">
+      <div class="text-center mb-4">
+        <div class="w-12 h-12 bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto mb-2 text-2xl border border-emerald-500/30">
+          <i class="ph-fill ph-trophy"></i>
+        </div>
+        <h3 class="text-2xl font-black text-white">4-3-3 Kadroları Tamamlandı!</h3>
+        <p class="text-xs text-neutral-400 mt-1">
+          Konsept: <span id="summaryConceptText" class="text-amber-400 font-bold">Premier Lig</span> &bull; 1v1 Draft Sona Erdi
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 mb-4">
+        <!-- Team 1 Final List -->
+        <div class="bg-neutral-950/80 p-3 sm:p-3.5 rounded-xl border border-blue-900/50">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center justify-between mb-2">
+            <span>1. Oyuncu 11'i</span>
+            <span class="text-[10px] text-neutral-400">4-3-3</span>
+          </h4>
+          <ul id="p1FinalRoster" class="text-xs space-y-1 text-neutral-300 font-mono max-h-52 overflow-y-auto"></ul>
+          <div id="p1FinalJoker" class="mt-2 pt-2 border-t border-neutral-800 text-xs text-amber-400 font-semibold"></div>
+        </div>
+
+        <!-- Team 2 Final List -->
+        <div class="bg-neutral-950/80 p-3 sm:p-3.5 rounded-xl border border-red-900/50">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-red-400 flex items-center justify-between mb-2">
+            <span>2. Oyuncu 11'i</span>
+            <span class="text-[10px] text-neutral-400">4-3-3</span>
+          </h4>
+          <ul id="p2FinalRoster" class="text-xs space-y-1 text-neutral-300 font-mono max-h-52 overflow-y-auto"></ul>
+          <div id="p2FinalJoker" class="mt-2 pt-2 border-t border-neutral-800 text-xs text-amber-400 font-semibold"></div>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="pt-2 border-t border-neutral-800">
+        <!-- Host Controls (1. Oyuncu) -->
+        <div id="summaryHostControls" class="flex flex-wrap justify-center gap-2.5">
+          <button onclick="promptReturnToMenu()" class="px-4 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-semibold flex items-center gap-1.5 transition">
+            <i class="ph-bold ph-house"></i>
+            <span>Ana Menüye Dön</span>
+          </button>
+          <button onclick="triggerMatchSimulation()" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-neutral-950 text-xs font-black flex items-center gap-2 shadow-lg shadow-amber-950 transition active:scale-95">
+            <i class="ph-bold ph-lightning"></i>
+            <span>Maçı Simüle Et</span>
+          </button>
+          <button onclick="startFreshGame()" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-2 transition active:scale-95">
+            <i class="ph-bold ph-play"></i>
+            <span>Yeni Draft Başlat</span>
+          </button>
+        </div>
+
+        <!-- Client Controls (2. Oyuncu - Misafir) -->
+        <div id="summaryClientControls" class="flex flex-col items-center gap-2.5 hidden">
+          <div class="w-full p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center justify-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+            <span>Host (1. Oyuncu) bekleniyor... Maç simülasyonu veya yeni draft başlatılacak.</span>
+          </div>
+          <button onclick="promptReturnToMenu()" class="px-4 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-semibold flex items-center gap-1.5 transition">
+            <i class="ph-bold ph-house"></i>
+            <span>Ana Menüye Dön</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reset Confirmation Modal -->
+  <div id="resetModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="bg-neutral-900 border border-neutral-700 rounded-2xl max-w-sm w-full p-5 text-center shadow-xl">
+      <i class="ph-bold ph-warning text-amber-400 text-3xl mb-2 inline-block"></i>
+      <h4 class="text-base font-bold text-white mb-1">Draft Sıfırlansın mı?</h4>
+      <p class="text-xs text-neutral-400 mb-4">Tüm seçimler, sahadaki oyuncular ve reddedilenler sıfırlanacaktır.</p>
+      <div class="flex justify-center gap-3">
+        <button onclick="document.getElementById('resetModal').classList.add('hidden')" class="px-4 py-2 rounded-xl bg-neutral-800 text-neutral-300 hover:bg-neutral-700 text-xs font-semibold">İptal</button>
+        <button onclick="confirmReset()" class="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold">Evet, Sıfırla</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Return to Menu Confirmation Modal -->
+  <div id="returnMenuModal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="bg-neutral-900 border border-neutral-700 rounded-2xl max-w-sm w-full p-5 text-center shadow-xl">
+      <i class="ph-bold ph-house text-emerald-400 text-3xl mb-2 inline-block"></i>
+      <h4 class="text-base font-bold text-white mb-1">Ana Menüye Dönülsün mü?</h4>
+      <p class="text-xs text-neutral-400 mb-4">Mevcut oda bağlantısı ve maç sonlandırılacaktır.</p>
+      <div class="flex justify-center gap-3">
+        <button onclick="document.getElementById('returnMenuModal').classList.add('hidden')" class="px-4 py-2 rounded-xl bg-neutral-800 text-neutral-300 hover:bg-neutral-700 text-xs font-semibold">İptal</button>
+        <button onclick="confirmReturnToMenu()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold">Menüye Dön</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="border-t border-neutral-900 bg-neutral-950/80 px-4 py-2.5 text-center text-neutral-500 text-xs">
+    1v1 Serbest Taktik Draft &bull; 5 Lig Konsepti &bull; 4-3-3 &bull; Tam Senkronize Canlı Çok Oyunculu
+  </footer>
+
+  <script>
+    /* ==========================================================================
+       1. OYUNCU VERİTABANI (DATABASE - 5 KONSEPT)
+       ========================================================================== */
+    const FOOTBALL_DATABASE = {
+      // 1. PREMIER LİG EFSANELERİ
+      PL: {
+        id: "PL",
+        name: "Premier Lig",
+        badge: "🇬🇧",
+        description: "Premier Lig tarihine damga vuran efsaneler",
+        players: {
+          GK: ["Petr Cech", "Peter Schmeichel", "Edwin van der Sar", "David Seaman", "Alisson Becker", "Ederson", "Jens Lehmann", "David Raya", "David de Gea", "Wojciech Szczesny", "Gianluigi Donnarumma", "Joe Hart", "Emiliano Martinez", "Jordan Pickford", "Loris Karius", "Hugo Lloris"],
+          LB: ["Ashley Cole", "Patrice Evra", "Andrew Robertson", "Aleksandar Kolarov", "John Arne Riise", "Oleksandr Zinchenko", "Josko Gvardiol", "Gael Clichy", "Cesar Azpilicueta", "Marcos Alonso", "Ferdi Kadıoğlu"],
+          CB: ["Virgil van Dijk", "Nemanja Vidic", "Rio Ferdinand", "John Terry", "Vincent Kompany", "Sol Campbell", "Gabriel Magalhaes", "Jaap Stam", "William Saliba", "Gary Cahill", "Ruben Dias", "John Stones", "Jan Vertonghen", "Toby Alderweireld", "Marc Guehi", "Ezri Konsa", "Eliaquim Mangala", "Harry Maguire"],
+          RB: ["Gary Neville", "Trent Alexander-Arnold", "Kyle Walker", "Bacary Sagna", "Branislav Ivanovic", "Pablo Zabaleta", "Reece James", "Jeremie Frimpong", "Kieran Trippier", "Aaron Wan-Bissaka"],
+          CM: ["Steven Gerrard", "Frank Lampard", "Paul Scholes", "Patrick Vieira", "Roy Keane", "Yaya Toure", "Rodri", "Cesc Fabregas", "N'Golo Kante", "Declan Rice", "Bruno Guimaraes", "Myles Lewis-Skelly", "Christian Eriksen", "Ryan Giggs", "Michael Carrick", "Mikel Arteta", "Aaron Ramsey", "Tomas Rosicky", "James Milner", "Jordan Henderson", "Jorginho", "Michael Essien", "John Obi Mikel", "Fernandinho", "Fabinho", "Naby Keita", "Paul Pogba", "Casemiro", "Georginio Wijnaldum", "Alexis Mac Allister", "Elliot Anderson"],
+          CAM: ["Kevin De Bruyne", "David Silva", "Mesut Özil", "Bruno Fernandes", "Florian Wirtz", "Oscar", "Cole Palmer", "Martin Ødegaard", "Rayan Cherki", "Juan Mata", "Dimitri Payet", "Rafael van der Vaart", "Morgan Rogers", "Adel Taarabt"],
+          LW: ["Eden Hazard", "Robert Pires", "Sadio Mane", "Son Heung-min", "Park Ji-sung", "Cristiano Ronaldo", "Marcus Rashford", "Gabriel Martinelli", "Luis Diaz", "Thierry Henry", "Jack Grealish", "Andre Schürrle", "Leandro Trossard", "Jeremy Doku", "Nani", "Wilfried Zaha"],
+          ST: ["Roberto Firmino", "Wayne Rooney", "Sergio Agüero", "Alan Shearer", "Erling Haaland", "Didier Drogba", "Robin van Persie", "Harry Kane", "Ruud van Nistelrooy", "Carlos Tevez", "Igor Thiago", "Ivan Toney", "Loic Remy", "Radamel Falcao", "Alexander Isak", "Kai Havertz", "Olivier Giroud", "Luis Suarez", "Demba Ba", "Christian Benteke", "Bryan Mbeumo", "Brian Brobbey", "Edin Dzeko", "Ollie Watkins", "Edinson Cavani", "Zlatan Ibrahimovic", "Viktor Gyökeres", "Emmanuel Adebayor", "Divock Origi", "Peter Crouch", "Michael Owen", "Dimitar Berbatov", "Andy Carroll", "Pierre-Emerick Aubameyang"],
+          RW: ["Willian", "Mohamed Salah", "David Beckham", "Freddie Ljungberg", "Riyad Mahrez", "Bukayo Saka", "Phil Foden", "Theo Walcott", "Aaron Lennon", "Pedro", "Dirk Kuyt", "Juan Cuadrado", "Ashley Young", "Gareth Bale"]
+        }
+      },
+
+      // 2. ŞAMPİYONLAR LİGİ EFSANELERİ (UCL)
+      UCL: {
+        id: "UCL",
+        name: "Şampiyonlar Ligi",
+        badge: "⭐",
+        description: "Devler Ligi'nde kupalar kaldıran unutulmaz yıldızlar",
+        players: {
+          GK: ["Iker Casillas", "Manuel Neuer", "Keylor Navas", "Victor Valdes", "Thibaut Courtois", "Oliver Kahn", "Gianluigi Buffon", "Edouard Mendy", "Petr Cech", "Marc-Andre ter Stegen", "Loris Karius", "Gianluigi Donnarumma", "Andriy Lunin", "Ederson", "Samir Handanovic", "Julio Cesar", "Dida", "Edwin van der Sar", "Christian Abbiati", "Yann Sommer", "Fernando Muslera"],
+          LB: ["Marcelo", "Roberto Carlos", "Paolo Maldini", "David Alaba", "Theo Hernandez", "Jordi Alba", "Filipe Luis", "Nuno Mendes", "Federico Dimarco", "Alphonso Davies", "Patrice Evra", "Ferland Mendy", "Fabio Coentrao", "Andrew Robertson", "Eric Abidal"],
+          CB: ["Sergio Ramos", "Gerard Pique", "Carles Puyol", "Raphael Varane", "Antonio Rüdiger", "Alessandro Nesta", "Jerome Boateng", "Ruben Dias", "Marquinhos", "Alessandro Bastoni", "Pepe", "Virgil van Dijk", "Giorgio Chiellini", "Andrea Barzagli", "Leonardo Bonucci", "John Terry", "Nemanja Vidic", "Rio Ferdinand", "Joel Matip", "Ronald Araujo", "Francesco Acerbi"],
+          RB: ["Dani Carvajal", "Dani Alves", "Philipp Lahm", "Trent Alexander-Arnold", "Achraf Hakimi", "Javier Zanetti", "Maicon", "Denzel Dumfries", "Ashley Young", "Gary Neville", "Serge Aurier"],
+          CM: ["Luka Modric", "Toni Kroos", "Xavi Hernandez", "Andres Iniesta", "Casemiro", "Clarence Seedorf", "Andrea Pirlo", "Sergio Busquets", "Bastian Schweinsteiger", "Vitinha", "Joao Neves", "Rodri", "Thiago Alcantara", "Aurelien Tchouameni", "Eduardo Camavinga", "Arda Güler"],
+          CAM: ["Zinedine Zidane", "Thomas Müller", "Kaka", "Wesley Sneijder", "Jude Bellingham", "Kevin De Bruyne", "Jamal Musiala", "Isco"],
+          LW: ["Michael Olise", "Vinicius Junior", "Kylian Mbappe", "Neymar Jr", "Franck Ribery", "Khvicha Kvaratskhelia"],
+          ST: ["Karim Benzema", "Robert Lewandowski", "Ousmane Dembele", "Filippo Inzaghi", "Samuel Eto'o", "Raul Gonzalez", "Andriy Shevchenko", "Erling Haaland", "Roberto Firmino", "Cristiano Ronaldo", "Raphinha"],
+          RW: ["Lionel Messi", "Gareth Bale", "Arjen Robben", "Angel Di Maria", "Rodrygo", "Mohamed Salah", "Lamine Yamal", "Pedro", "Alexis Sanchez", "Desire Doue", "Marco Asensio", "Tete"]
+        }
+      },
+
+      // 3. LA LIGA EFSANELERİ
+      LA_LIGA: {
+        id: "LA_LIGA",
+        name: "La Liga",
+        badge: "🇪🇸",
+        description: "El Clasico ve İspanya futbolunun dev ikonları",
+        players: {
+          GK: ["Iker Casillas", "Marc-Andre ter Stegen", "Jan Oblak", "Victor Valdes", "Thibaut Courtois", "Keylor Navas", "Claudio Bravo", "Diego Alves", "Rüştü Reçber"],
+          LB: ["Roberto Carlos", "Marcelo", "Jordi Alba", "Fabio Coentrao", "Ferland Mendy", "Marc Cucurella", "Alejandro Balde", "Joao Cancelo", "Filipe Luis"],
+          CB: ["Sergio Ramos", "Carles Puyol", "Pepe", "Gerard Pique", "Diego Godin", "Ronald Araujo", "Antonio Rüdiger", "Pau Cubarsi", "Gerard Martin", "Ricardo Carvalho", "Andreas Christensen", "Jose Maria Gimenez", "Raul Albiol"],
+          RB: ["Dani Alves", "Dani Carvajal", "Juanfran", "Jules Kounde", "Jesus Navas", "Trent Alexander-Arnold", "Eric Garcia", "Nahuel Molina", "Sergi Roberto"],
+          CM: ["Xavi", "Andres Iniesta", "Luka Modric", "Toni Kroos", "Sergio Busquets", "Xabi Alonso", "Federico Valverde", "Gabi", "Arda Güler", "Koke", "Lassana Diarra", "Nuri Şahin", "Hamit Altıntop", "Ivan Rakitic", "Gavi", "Pedri", "Rodri", "Sami Khedira", "Dani Parejo", "Santi Cazorla"],
+          CAM: ["Zinedine Zidane", "James Rodriguez", "Mesut Özil", "Isco", "Pablo Aimar", "Jude Bellingham", "Arda Turan", "Dani Olmo", "Ever Banega"],
+          LW: ["Cristiano Ronaldo", "Ronaldinho", "Vinicius Junior", "Neymar Jr", "David Villa", "Antoine Griezmann", "Nihat Kahveci", "Marcus Rashford", "Philippe Coutinho", "Eden Hazard"],
+          ST: ["Ronaldo Nazario", "Lionel Messi", "Karim Benzema", "Luis Suarez", "Raul Gonzalez", "Hugo Sanchez", "Samuel Eto'o", "Diego Forlan", "Raphinha", "Kylian Mbappe", "Vedat Muriqi", "Karim Adeyemi", "Gonzalo Higuain"],
+          RW: ["Lionel Messi", "Luis Figo", "Gareth Bale", "Rivaldo", "Lamine Yamal", "Jose Callejon", "Rodrygo", "Pedro", "Alexis Sanchez"]
+        }
+      },
+
+      // 4. SERIE A EFSANELERİ
+      SERIE_A: {
+        id: "SERIE_A",
+        name: "Serie A",
+        badge: "🇮🇹",
+        description: "İtalya'nın altın çağları ve Serie A efsaneleri",
+        players: {
+          GK: ["Gianluigi Buffon", "Dida", "Julio Cesar", "Samir Handanovic", "Mike Maignan", "Francesco Toldo", "Gianluigi Donnarumma", "Yann Sommer", "Morgan De Sanctis"],
+          LB: ["Paolo Maldini", "Theo Hernandez", "Federico Dimarco"],
+          CB: ["Alessandro Nesta", "Fabio Cannavaro", "Franco Baresi", "Giorgio Chiellini", "Leonardo Bonucci", "Jaap Stam", "Walter Samuel", "Kalidou Koulibaly"],
+          RB: ["Cafu", "Javier Zanetti", "Maicon", "Lilian Thuram"],
+          CM: ["Andrea Pirlo", "Gennaro Gattuso", "Radja Nainggolan", "Marek Hamsik", "Esteban Cambiasso", "Daniele De Rossi", "Clarence Seedorf", "Nicolo Barella", "Arturo Vidal", "Paul Pogba", "Hakan Çalhanoğlu", "Sandro Tonali"],
+          CAM: ["Kaka", "Zinedine Zidane", "Roberto Baggio", "Rui Costa", "Paulo Dybala"],
+          LW: ["Rafael Leao", "Alessandro Del Piero", "Khvicha Kvaratskhelia", "Antonio Cassano", "Lorenzo Insigne", "Stephan El Shaarawy", "Kenan Yıldız", "Pavel Nedved"],
+          ST: ["Adriano", "Romelu Lukaku", "Gabriel Batistuta", "Filippo Inzaghi", "Andriy Shevchenko", "Christian Vieri", "Victor Osimhen", "Lautaro Martinez", "Hernan Crespo", "Donyell Malen", "Ciro Immobile", "Francesco Totti", "Gonzalo Higuain", "Dusan Vlahovic"],
+          RW: ["Jose Callejon", "Domenico Berardi", "Federico Chiesa", "Luis Figo", "Juan Cuadrado"]
+        }
+      },
+
+      // 5. SÜPER LİG EFSANELERİ
+      SUPER_LIG: {
+        id: "SUPER_LIG",
+        name: "Süper Lig",
+        badge: "🇹🇷",
+        description: "Türk futboluna ve derbilere damga vuran yıldızlar",
+        players: {
+          GK: ["Fernando Muslera", "Rüştü Reçber", "Claudio Taffarel", "Volkan Demirel", "Faryd Mondragon", "Uğurcan Çakır", "Fabri", "Altay Bayındır", "Alexander Nübel", "Andre Onana", "Ersin Destanoğlu", "Carlos Kameni", "Dominik Livakovic", "Ederson", "Mert Günok", "Volkan Babacan", "Harun Tekin", "İsmail Çipe"],
+          LB: ["Roberto Carlos", "Caner Erkin", "Hakan Ünsal", "Ferdi Kadıoğlu", "Arthur Masuaku", "Ümit Özat", "Adriano", "Ergün Penbe", "Andre Santos", "Rıdvan Yılmaz", "Gael Clichy", "Alex Telles", "Ismail Jakobs", "Mustafa Eskihellaç", "Umut Meraş", "David Jurasek", "Martin Linnes"],
+          CB: ["Diego Lugano", "Bülent Korkmaz", "Pepe", "Simon Kjaer", "Kim Min-jae", "Abdülkerim Bardakcı", "Egemen Korkmaz", "Tomas Sivok", "Victor Nelsson", "Christian Luyindama", "Ryan Donk", "Daniel Amartey", "Eric Bailly", "Tiago Djalo", "Emirhan Topçu", "Emmanuel Agbadou", "Martin Skrtel", "Attila Szalai", "Pedro Franco", "Jayden Oosterwolde", "Davinson Sanchez", "Yusuf Akçiçek", "Samet Akaydın", "Chibuike Nwaiwu"],
+          RB: ["Gökhan Gönül", "Emmanuel Eboue", "Mariano", "Cicinho", "Sacha Boey", "Ümit Davala", "Daniel Opare", "Roland Sallai", "Wagner Pina", "Amir Murillo", "Sabri Sarıoğlu"],
+          CM: ["Emre Belözoğlu", "Felipe Melo", "Atiba Hutchinson", "Selçuk İnan", "Mehmet Aurelio", "Lucas Torreira", "Fabian Ernst", "Fred", "Christian Baroni", "Raul Meireles", "Oğuzhan Özyakup", "Alexandru Cicaldau", "Olimpiu Morutan", "Junior Olaitan", "Salih Özcan", "Orkun Kökçü", "N'Golo Kante", "Fabinho", "Aleksei Batrakov", "Gedson Fernandes", "Wilfried Ndidi", "Al-Musrati", "Sergio Oliveira", "Berat Özdemir"],
+          CAM: ["Alex de Souza", "Gheorghe Hagi", "Sergen Yalçın", "Wesley Sneijder", "Talisca", "Manuel Fernandes", "Youssef Belhanda", "Dries Mertens", "Marco Asensio", "Mossoro", "Jose Sosa", "Giuliano", "Gabriel Sara", "Tümer Metin", "Pablo Martin Batalla", "Mehmet Ekici", "Florin Cernat"],
+          LW: ["Kerem Aktürkoğlu", "Anthony Nwakaeme", "Ryan Babel", "Harry Kewell", "Tuncay Şanlı", "Allan Saint-Maximin", "Ibrahima Yattara", "Leandro Trossard", "Rafael Leao", "Oğuz Aydın", "Bruma", "Lazar Markovic", "Alanzinho", "Erkan Zengin", "Yusuf Erdoğan"],
+          ST: ["Mauro Icardi", "Burak Yılmaz", "Mario Gomez", "Didier Drogba", "Hakan Şükür", "Pierre van Hooijdonk", "Vincent Aboubakar", "Edin Dzeko", "Victor Osimhen", "Tanju Çolak", "Aaron Boupendza", "Dusan Vlahovic", "Enner Valencia", "Daniel Guiza", "Umut Bulut", "Umut Nayir", "Mustafa Hekimoğlu", "Semih Kılıçsoy", "Adis Jahovic", "Daniel Sturridge", "Alexander Sörloth", "Andreas Cornelius", "Cyle Larin", "Vedat Muriqi", "Romelu Lukaku", "Sidiki Cherif", "Islam Slimani", "Alvaro Negredo", "Eren Derdiyok", "Hugo Almeida", "Moussa Sow", "Emmanuel Emenike", "Michael Eneramo", "Lomana LuaLua"],
+          RW: ["Ricardo Quaresma", "Edin Visca", "Sofiane Feghouli", "Cengiz Ünder", "Barış Alper Yılmaz", "Dirk Kuyt", "Rachid Ghezzal", "İrfan Can Kahveci", "Leroy Sane", "Mohamed Salah", "Emre Mor", "Yusuf Sarı", "Jimmy Durmaz"]
+        }
+      }
+    };
+
+    /* ==========================================================================
+       GİZLİ OYUNCU YETENEK DEĞERLERİ (1 İLE 5 ARASI)
+       Kullanıcılar ekranda bu puanları görmez; maç simülasyonunda güç hesaplanır.
+       Burada yer almayan herhangi bir oyuncu için varsayılan değer 3'tür.
+       ========================================================================== */
+    const PLAYER_RATINGS = {
+      // 5 YILDIZLI DÜNYA İKONLARI
+      "Cristiano Ronaldo": 5, "Lionel Messi": 5, "Zinedine Zidane": 5, "Ronaldo Nazario": 5,
+      "Paolo Maldini": 5, "Iker Casillas": 5, "Manuel Neuer": 5, "Gianluigi Buffon": 5,
+      "Thierry Henry": 5, "Luka Modric": 5, "Toni Kroos": 5, "Andres Iniesta": 5,
+      "Xavi": 5, "Xavi Hernandez": 5, "Alex de Souza": 5, "Gheorghe Hagi": 5,
+      "Sergio Ramos": 5, "Virgil van Dijk": 5, "Nemanja Vidic": 5, "John Terry": 5,
+      "Karim Benzema": 5, "Robert Lewandowski": 5, "Erling Haaland": 5, "Kylian Mbappe": 5,
+      "Kevin De Bruyne": 5, "Kaka": 5, "Wayne Rooney": 5, "Eden Hazard": 5,
+      "Mohamed Salah": 5, "Gareth Bale": 5, "Arjen Robben": 5, "Fernando Muslera": 5,
+
+      // 4 YILDIZLI YILDIZLAR
+      "Petr Cech": 4, "Peter Schmeichel": 4, "Edwin van der Sar": 4, "Alisson Becker": 4,
+      "Ederson": 4, "Ashley Cole": 4, "Patrice Evra": 4, "Andrew Robertson": 4,
+      "Rio Ferdinand": 4, "Vincent Kompany": 4, "Ruben Dias": 4, "Trent Alexander-Arnold": 4,
+      "Kyle Walker": 4, "Steven Gerrard": 4, "Frank Lampard": 4, "Paul Scholes": 4,
+      "Patrick Vieira": 4, "Yaya Toure": 4, "Rodri": 4, "Cesc Fabregas": 4,
+      "N'Golo Kante": 4, "David Silva": 4, "Mesut Özil": 4, "Bruno Fernandes": 4,
+      "Sadio Mane": 4, "Son Heung-min": 4, "Sergio Agüero": 4, "Didier Drogba": 4,
+      "Robin van Persie": 4, "Harry Kane": 4, "Luis Suarez": 4, "Carlos Tevez": 4,
+      "Diego Lugano": 4, "Bülent Korkmaz": 4, "Pepe": 4, "Felipe Melo": 4,
+      "Atiba Hutchinson": 4, "Wesley Sneijder": 4, "Mauro Icardi": 4, "Mario Gomez": 4,
+      "Victor Osimhen": 4, "Ricardo Quaresma": 4, "Edin Visca": 4, "Lucas Torreira": 4,
+      "Fred": 4, "Ferdi Kadıoğlu": 4, "Gökhan Gönül": 4, "Claudio Taffarel": 4,
+      "Volkan Demirel": 4, "Burak Yılmaz": 4, "Hakan Şükür": 4, "Pierre van Hooijdonk": 4,
+
+      // 2 YILDIZLI OYUNCULAR
+      "Harry Maguire": 2, "Loris Karius": 2, "İsmail Çipe": 2, "Samet Akaydın": 2,
+      "Umut Meraş": 2, "Harun Tekin": 2, "Daniel Amartey": 2, "Junior Olaitan": 2
+    };
+
+    function getPlayerAbility(playerName) {
+      if (!playerName || playerName === "Boş" || playerName === "Seçilmedi") return 0;
+      return PLAYER_RATINGS[playerName] || 3; // Varsayılan puan 3
+    }
+
+    /* ==========================================================================
+       2. SES VE EFEKT SİSTEMİ (TONE.JS)
+       ========================================================================== */
+    let soundEnabled = true;
+    let synth = null;
+
+    function initAudio() {
+      if (!synth && window.Tone) {
+        synth = new Tone.PolySynth(Tone.Synth, {
+          oscillator: { type: "triangle" },
+          envelope: { attack: 0.005, decay: 0.1, sustain: 0.01, release: 0.1 }
+        }).toDestination();
+        Tone.start();
+      }
+    }
+
+    function playSound(type) {
+      if (!soundEnabled) return;
+      initAudio();
+      if (!synth) return;
+      try {
+        const now = Tone.now();
+        if (type === 'pick') {
+          synth.triggerAttackRelease(["C5", "E5", "G5"], "16n", now);
+        } else if (type === 'skip') {
+          synth.triggerAttackRelease(["D3"], "16n", now);
+        } else if (type === 'turn') {
+          synth.triggerAttackRelease(["G4", "C5"], "16n", now);
+        } else if (type === 'joker') {
+          synth.triggerAttackRelease(["F4", "A4", "C5", "E5"], "8n", now);
+        } else if (type === 'swap') {
+          synth.triggerAttackRelease(["D4", "G4", "B4", "D5"], "16n", now);
+        } else if (type === 'kura') {
+          synth.triggerAttackRelease(["E5", "G5", "B5", "E6"], "16n", now);
+        } else if (type === 'goal') {
+          synth.triggerAttackRelease(["C4", "G4", "C5", "E5", "G5"], "8n", now);
+        } else if (type === 'error') {
+          synth.triggerAttackRelease(["G2", "F2"], "16n", now);
+        }
+      } catch (e) {}
+    }
+
+    function toggleSound() {
+      soundEnabled = !soundEnabled;
+      const icon = document.getElementById('soundIcon');
+      if (soundEnabled) {
+        icon.className = 'ph-bold ph-speaker-high text-emerald-400';
+      } else {
+        icon.className = 'ph-bold ph-speaker-slash text-neutral-500';
+      }
+    }
+
+    function showToast(message) {
+      const toast = document.getElementById('toastNotification');
+      const text = document.getElementById('toastMessage');
+      text.innerText = message;
+      toast.classList.remove('opacity-0', '-translate-y-4');
+      toast.classList.add('opacity-100', 'translate-y-0');
+      setTimeout(() => {
+        toast.classList.remove('opacity-100', 'translate-y-0');
+        toast.classList.add('opacity-0', '-translate-y-4');
+      }, 3500);
+    }
+
+    /* ==========================================================================
+       3. 4-3-3 DİZİLİŞ SLOT TANIMLARI
+       ========================================================================== */
+    const FORMATION_SLOTS = [
+      { id: 'GK', label: 'Kaleci (GK)', posType: 'GK' },
+      { id: 'LB', label: 'Sol Bek (LB)', posType: 'LB' },
+      { id: 'CB1', label: 'Stoper (CB)', posType: 'CB' },
+      { id: 'CB2', label: 'Stoper (CB)', posType: 'CB' },
+      { id: 'RB', label: 'Sağ Bek (RB)', posType: 'RB' },
+      { id: 'CM1', label: 'Orta Saha (CM)', posType: 'CM' },
+      { id: 'CM2', label: 'Orta Saha (CM)', posType: 'CM' },
+      { id: 'CAM', label: 'Ofansif Orta (CAM)', posType: 'CAM' },
+      { id: 'LW', label: 'Sol Kanat (LW)', posType: 'LW' },
+      { id: 'ST', label: 'Santrafor (ST)', posType: 'ST' },
+      { id: 'RW', label: 'Sağ Kanat (RW)', posType: 'RW' }
+    ];
+
+    const POSITION_LABELS = {
+      GK: "Kaleci (GK)",
+      LB: "Sol Bek (LB)",
+      CB: "Stoper (CB)",
+      RB: "Sağ Bek (RB)",
+      CM: "Orta Saha (CM)",
+      CAM: "Ofansif Orta (CAM)",
+      LW: "Sol Kanat (LW)",
+      ST: "Santrafor (ST)",
+      RW: "Sağ Kanat (RW)"
+    };
+
+    /* ==========================================================================
+       4. OYUN VE ÇOK OYUNCULU AĞ DURUMU (GAME STATE)
+       ========================================================================== */
+    let activeConceptKey = "PL";
+
+    let networkMode = 'local'; // 'local' | 'host' | 'client'
+    let myPlayerRole = 1;      // 1 (Host/Local) or 2 (Client)
+    let mqttClient = null;
+    let currentRoomCode = null;
+    let localPitchView = 1;    // Hangi sahanın görüntülendiği (1 or 2)
+    let simInterval = null;
+    let joinHeartbeatInterval = null;
+
+    let gameState = {
+      activePlayer: 1,
+      roundCount: 1,
+      offerStep: 1,
+      currentCandidates: [],
+      usedPlayersSet: new Set(),
+      teams: {
+        1: {},
+        2: {}
+      },
+      jokerSubs: {
+        1: null,
+        2: null
+      },
+      discarded: [],
+      isJokerPhase: false,
+      jokerTurn: 1,
+      isComplete: false
+    };
+
+    let pendingSub = null;
+
+    function getTeamCount(playerNum) {
+      const t = gameState.teams[playerNum] || gameState.teams[String(playerNum)] || {};
+      return Object.keys(t).length;
+    }
+
+    /* ==========================================================================
+       5. AĞ İLETİŞİMİ & MENÜ SİSTEMİ (SECURE WEBSOCKET BROKER)
+       ========================================================================== */
+    const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
+
+    function promptReturnToMenu() {
+      document.getElementById('returnMenuModal').classList.remove('hidden');
+    }
+
+    function confirmReturnToMenu() {
+      document.getElementById('returnMenuModal').classList.add('hidden');
+      terminateLobbyAndReturnMenu();
+    }
+
+    function terminateLobbyAndReturnMenu() {
+      if (networkMode === 'host') {
+        sendToClient({ type: 'LOBBY_TERMINATED' });
+      } else if (networkMode === 'client') {
+        sendToHost({ type: 'LOBBY_TERMINATED' });
+      }
+      executeLobbyTermination();
+    }
+
+    function executeLobbyTermination() {
+      if (simInterval) {
+        clearInterval(simInterval);
+        simInterval = null;
+      }
+      if (joinHeartbeatInterval) {
+        clearInterval(joinHeartbeatInterval);
+        joinHeartbeatInterval = null;
+      }
+      closeSummaryModal();
+      const simModal = document.getElementById('matchSimulationModal');
+      if (simModal) {
+        simModal.classList.add('hidden');
+        simModal.style.display = 'none';
+      }
+      if (mqttClient) {
+        try { mqttClient.end(true); } catch (e) {}
+      }
+      mqttClient = null;
+      networkMode = 'local';
+      myPlayerRole = 1;
+      localPitchView = 1;
+
+      document.getElementById('mainMenuScreen').classList.remove('hidden');
+      document.getElementById('viewSummaryHeaderBtn').classList.add('hidden');
+      document.getElementById('simHeaderBtn').classList.add('hidden');
+      showToast("🏠 Lobi sonlandırıldı, Ana Menüye dönüldü.");
+    }
+
+    function sendToClient(packet) {
+      if (mqttClient && mqttClient.connected && currentRoomCode) {
+        try {
+          mqttClient.publish(`tdraft/v1/${currentRoomCode}/to_client`, JSON.stringify(packet));
+        } catch (e) {}
+      }
+    }
+
+    function sendToHost(packet) {
+      if (mqttClient && mqttClient.connected && currentRoomCode) {
+        try {
+          mqttClient.publish(`tdraft/v1/${currentRoomCode}/to_host`, JSON.stringify(packet));
+        } catch (e) {}
+      }
+    }
+
+    function generateRoomCode() {
+      return "TR-" + Math.floor(1000 + Math.random() * 9000);
+    }
+
+    function openHostConceptSelectModal() {
+      renderHostConceptCards();
+      document.getElementById('hostConceptSelectModal').classList.remove('hidden');
+    }
+
+    function closeHostConceptSelectModal() {
+      document.getElementById('hostConceptSelectModal').classList.add('hidden');
+    }
+
+    function renderHostConceptCards() {
+      const container = document.getElementById('hostConceptGrid');
+      if (!container) return;
+      container.innerHTML = '';
+
+      Object.keys(FOOTBALL_DATABASE).forEach(key => {
+        const item = FOOTBALL_DATABASE[key];
+        const isSelected = activeConceptKey === key;
+        const card = document.createElement('button');
+        card.className = `p-3 rounded-xl border text-left transition flex flex-col justify-between ${
+          isSelected 
+            ? 'bg-emerald-950/70 border-emerald-400 ring-2 ring-emerald-500/30' 
+            : 'bg-neutral-800/80 hover:bg-neutral-700/80 border-neutral-700'
+        }`;
+        card.onclick = () => {
+          proceedCreateRoomWithConcept(key);
+        };
+
+        card.innerHTML = `
+          <div>
+            <div class="text-2xl mb-1">${item.badge}</div>
+            <div class="text-xs font-bold text-white">${item.name}</div>
+          </div>
+          <div class="text-[10px] text-neutral-400 mt-2 line-clamp-2">${item.description}</div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function proceedCreateRoomWithConcept(conceptKey) {
+      activeConceptKey = conceptKey;
+      closeHostConceptSelectModal();
+      startHostingRoom();
+    }
+
+    function runHostConceptLottery() {
+      const keys = Object.keys(FOOTBALL_DATABASE);
+      const btn = document.getElementById('spinHostKuraBtn');
+      const text = document.getElementById('hostKuraBtnText');
+      if (!btn || !text) return;
+      btn.disabled = true;
+      btn.classList.add('opacity-75');
+
+      let counter = 0;
+      const interval = setInterval(() => {
+        const tempKey = keys[Math.floor(Math.random() * keys.length)];
+        text.innerText = `Kura: ${FOOTBALL_DATABASE[tempKey].badge} ${FOOTBALL_DATABASE[tempKey].name}`;
+        counter++;
+        if (counter > 14) {
+          clearInterval(interval);
+          const finalKey = keys[Math.floor(Math.random() * keys.length)];
+          activeConceptKey = finalKey;
+          text.innerText = `Kazanan: ${FOOTBALL_DATABASE[finalKey].badge} ${FOOTBALL_DATABASE[finalKey].name}!`;
+          playSound('kura');
+          setTimeout(() => {
+            btn.disabled = false;
+            btn.classList.remove('opacity-75');
+            text.innerText = `Rastgele Lig Kurası Çek!`;
+            proceedCreateRoomWithConcept(finalKey);
+          }, 700);
+        }
+      }, 90);
+    }
+
+    function startHostingRoom() {
+      networkMode = 'host';
+      myPlayerRole = 1;
+      localPitchView = 1;
+      currentRoomCode = generateRoomCode();
+
+      const concept = FOOTBALL_DATABASE[activeConceptKey];
+      document.getElementById('hostWaitingConceptBadge').innerHTML = `<i class="ph-bold ph-trophy text-amber-400"></i> <span>Lig: ${concept.badge} ${concept.name}</span>`;
+      document.getElementById('hostRoomCodeDisplay').innerText = "BAĞLANILIYOR...";
+      document.getElementById('hostWaitingModal').classList.remove('hidden');
+
+      if (mqttClient) {
+        try { mqttClient.end(true); } catch (e) {}
+      }
+
+      mqttClient = mqtt.connect(BROKER_URL, {
+        clientId: 'td_host_' + Math.random().toString(16).substring(2, 10),
+        clean: true,
+        connectTimeout: 7000
+      });
+
+      mqttClient.on('connect', () => {
+        document.getElementById('hostRoomCodeDisplay').innerText = currentRoomCode;
+        mqttClient.subscribe(`tdraft/v1/${currentRoomCode}/to_host`);
+      });
+
+      mqttClient.on('message', (topic, payload) => {
+        try {
+          const packet = JSON.parse(payload.toString());
+          if (packet.type === 'CLIENT_JOIN_REQUEST') {
+            sendToClient({ type: 'HOST_ACCEPT_JOIN', conceptKey: activeConceptKey });
+            document.getElementById('hostWaitingModal').classList.add('hidden');
+            document.getElementById('mainMenuScreen').classList.add('hidden');
+            showToast("🟢 2. Oyuncu Lobiye Katıldı! Maç Başlıyor.");
+            initGame();
+            updateConnectionBadge();
+          } else {
+            handleNetworkPacket(packet);
+          }
+        } catch (e) {}
+      });
+
+      mqttClient.on('error', (err) => {
+        console.error("Broker Hatası:", err);
+        showToast("⚠️ Bağlantı sunucusuna erişilemedi.");
+      });
+    }
+
+    function copyInviteLink() {
+      const url = window.location.origin + window.location.pathname + "?room=" + currentRoomCode;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(() => {
+          showToast("📋 Davet bağlantısı panoya kopyalandı!");
+        }).catch(() => {
+          fallbackCopyText(url);
+        });
+      } else {
+        fallbackCopyText(url);
+      }
+    }
+
+    function fallbackCopyText(text) {
+      const input = document.createElement("input");
+      input.value = text;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand("copy");
+      document.body.removeChild(input);
+      showToast("📋 Davet bağlantısı kopyalandı!");
+    }
+
+    function cancelHostingAndReturnMenu() {
+      document.getElementById('hostWaitingModal').classList.add('hidden');
+      if (mqttClient) {
+        try { mqttClient.end(true); } catch (e) {}
+      }
+      mqttClient = null;
+      networkMode = 'local';
+    }
+
+    function handleMenuJoinRoom() {
+      const input = document.getElementById('roomCodeInput');
+      const code = input.value.trim().toUpperCase();
+      if (!code) {
+        showToast("⚠️ Lütfen 6 haneli oda kodunu girin.");
+        return;
+      }
+      joinRoomByCode(code);
+    }
+
+    function joinRoomByCode(roomCode) {
+      networkMode = 'client';
+      myPlayerRole = 2;
+      localPitchView = 2; // Client daima kendi sahasını görsün
+      currentRoomCode = roomCode;
+
+      showToast("⏳ Odaya bağlanılıyor, lütfen bekleyin...");
+
+      const joinBtn = document.querySelector("button[onclick='handleMenuJoinRoom()']");
+      if (joinBtn) {
+        joinBtn.disabled = true;
+        joinBtn.classList.add('opacity-50');
+      }
+
+      if (mqttClient) {
+        try { mqttClient.end(true); } catch (e) {}
+      }
+
+      let hasJoined = false;
+      const joinTimeoutTimer = setTimeout(() => {
+        if (!hasJoined) {
+          if (joinHeartbeatInterval) clearInterval(joinHeartbeatInterval);
+          showToast("❌ Odaya bağlanılamadı. Kodun doğru olduğundan ve arkadaşının odada beklediğinden emin ol.");
+          if (joinBtn) {
+            joinBtn.disabled = false;
+            joinBtn.classList.remove('opacity-50');
+          }
+        }
+      }, 12000);
+
+      mqttClient = mqtt.connect(BROKER_URL, {
+        clientId: 'td_client_' + Math.random().toString(16).substring(2, 10),
+        clean: true,
+        connectTimeout: 7000
+      });
+
+      mqttClient.on('connect', () => {
+        mqttClient.subscribe(`tdraft/v1/${currentRoomCode}/to_client`, () => {
+          // Odaya katılım isteği gönder
+          sendToHost({ type: 'CLIENT_JOIN_REQUEST', room: currentRoomCode });
+          
+          // Host yanıt verene kadar saniyede bir dene
+          joinHeartbeatInterval = setInterval(() => {
+            if (!hasJoined) {
+              sendToHost({ type: 'CLIENT_JOIN_REQUEST', room: currentRoomCode });
+            } else {
+              clearInterval(joinHeartbeatInterval);
+            }
+          }, 1000);
+        });
+      });
+
+      mqttClient.on('message', (topic, payload) => {
+        try {
+          const packet = JSON.parse(payload.toString());
+          if (packet.type === 'HOST_ACCEPT_JOIN' || packet.type === 'SYNC_STATE') {
+            if (!hasJoined) {
+              hasJoined = true;
+              clearTimeout(joinTimeoutTimer);
+              if (joinHeartbeatInterval) clearInterval(joinHeartbeatInterval);
+              if (joinBtn) {
+                joinBtn.disabled = false;
+                joinBtn.classList.remove('opacity-50');
+              }
+              document.getElementById('mainMenuScreen').classList.add('hidden');
+              showToast("🟢 Odaya başarıyla bağlandınız!");
+              renderPitchSlots();
+              updateConnectionBadge();
+            }
+          }
+          handleNetworkPacket(packet);
+        } catch (e) {}
+      });
+
+      mqttClient.on('error', (err) => {
+        console.error("Client Broker Hatası:", err);
+        showToast("⚠️ Bağlantı kurulamadı.");
+      });
+    }
+
+    function handleMenuStartLocal() {
+      networkMode = 'local';
+      myPlayerRole = 1;
+      localPitchView = 1;
+      document.getElementById('mainMenuScreen').classList.add('hidden');
+      initGame();
+      showToast("🎮 Yerel Mod Başlatıldı.");
+    }
+
+    function broadcastState() {
+      if (networkMode !== 'host' || !mqttClient || !mqttClient.connected) return;
+
+      const payload = {
+        type: 'SYNC_STATE',
+        conceptKey: activeConceptKey,
+        state: {
+          activePlayer: gameState.activePlayer,
+          roundCount: gameState.roundCount,
+          offerStep: gameState.offerStep,
+          currentCandidates: gameState.currentCandidates,
+          usedPlayers: Array.from(gameState.usedPlayersSet),
+          teams: gameState.teams,
+          jokerSubs: gameState.jokerSubs,
+          discarded: gameState.discarded,
+          isJokerPhase: gameState.isJokerPhase,
+          jokerTurn: gameState.jokerTurn,
+          isComplete: gameState.isComplete
+        }
+      };
+
+      sendToClient(payload);
+    }
+
+    function handleNetworkPacket(packet) {
+      if (!packet) return;
+
+      if (packet.type === 'SYNC_STATE') {
+        activeConceptKey = packet.conceptKey || activeConceptKey;
+        const s = packet.state;
+        const wasComplete = gameState.isComplete;
+        gameState.activePlayer = s.activePlayer;
+        gameState.roundCount = s.roundCount;
+        gameState.offerStep = s.offerStep;
+        gameState.currentCandidates = s.currentCandidates || [];
+        gameState.usedPlayersSet = new Set(s.usedPlayers || []);
+        gameState.teams = s.teams || { 1: {}, 2: {} };
+        gameState.jokerSubs = s.jokerSubs || { 1: null, 2: null };
+        gameState.discarded = s.discarded || [];
+        gameState.isJokerPhase = !!s.isJokerPhase;
+        gameState.jokerTurn = s.jokerTurn || 1;
+        gameState.isComplete = !!s.isComplete;
+
+        renderConceptBadges();
+        updateUI();
+
+        if (gameState.isComplete) {
+          document.getElementById('viewSummaryHeaderBtn').classList.remove('hidden');
+          if (networkMode !== 'client') {
+            document.getElementById('simHeaderBtn').classList.remove('hidden');
+          } else {
+            document.getElementById('simHeaderBtn').classList.add('hidden');
+          }
+          setTimeout(() => {
+            showSummaryModal();
+          }, 120);
+        } else {
+          closeSummaryModal();
+          if (simInterval) {
+            clearInterval(simInterval);
+            simInterval = null;
+          }
+          const simModal = document.getElementById('matchSimulationModal');
+          if (simModal) {
+            simModal.classList.add('hidden');
+            simModal.style.display = 'none';
+          }
+          document.getElementById('viewSummaryHeaderBtn').classList.add('hidden');
+          document.getElementById('simHeaderBtn').classList.add('hidden');
+
+          if (wasComplete && !gameState.isComplete) {
+            renderPitchSlots();
+            showToast("🔄 Yeni Draft Başlatıldı!");
+          }
+        }
+      } else if (packet.type === 'CLIENT_ACTION') {
+        if (networkMode === 'host') {
+          if (packet.action === 'PICK') {
+            handlePickOffer();
+          } else if (packet.action === 'SKIP') {
+            handleSkipOffer();
+          } else if (packet.action === 'SKIP_JOKER') {
+            skipJokerPhase();
+          } else if (packet.action === 'DO_JOKER_SUB') {
+            executeSubstitution(packet.userNum, packet.slotId, packet.jokerName, packet.oldPlayer);
+          } else if (packet.action === 'RESTART') {
+            startFreshGame();
+          } else if (packet.action === 'CLOSE_SIM') {
+            closeMatchSimulation();
+          }
+        }
+      } else if (packet.type === 'SIM_START') {
+        openSimModalForView();
+      } else if (packet.type === 'SIM_TICK') {
+        handleRemoteSimTick(packet);
+      } else if (packet.type === 'SIM_CLOSE') {
+        executeCloseSimUI();
+      } else if (packet.type === 'LOBBY_TERMINATED') {
+        showToast("⚠️ Lobi sonlandırıldı, ana menüye dönülüyor...");
+        executeLobbyTermination();
+      }
+    }
+
+    function updateConnectionBadge() {
+      const badge = document.getElementById('connectionModeBadge');
+      if (networkMode === 'host') {
+        badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span> 1. Oyuncu (Host) &bull; ${currentRoomCode}`;
+        badge.className = "text-blue-400 font-medium flex items-center gap-1";
+      } else if (networkMode === 'client') {
+        badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-red-400"></span> 2. Oyuncu (Misafir) &bull; ${currentRoomCode}`;
+        badge.className = "text-red-400 font-medium flex items-center gap-1";
+      } else {
+        badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Yerel Mod`;
+        badge.className = "text-emerald-400 font-medium flex items-center gap-1";
+      }
+    }
+
+    /* ==========================================================================
+       6. OYUN BAŞLATMA VE KONSEPT YÖNETİMİ
+       ========================================================================== */
+    function initGame() {
+      gameState.activePlayer = 1;
+      gameState.roundCount = 1;
+      gameState.offerStep = 1;
+      gameState.currentCandidates = [];
+      gameState.usedPlayersSet.clear();
+      gameState.teams = { 1: {}, 2: {} };
+      gameState.jokerSubs = { 1: null, 2: null };
+      gameState.discarded = [];
+      gameState.isJokerPhase = false;
+      gameState.jokerTurn = 1;
+      gameState.isComplete = false;
+      pendingSub = null;
+
+      if (networkMode === 'client') {
+        localPitchView = 2;
+      } else {
+        localPitchView = 1;
+      }
+
+      document.getElementById('jokerSelectionPanel').classList.add('hidden');
+      document.getElementById('draftCardContainer').classList.remove('hidden');
+      document.getElementById('summaryModal').classList.add('hidden');
+      document.getElementById('matchSimulationModal').classList.add('hidden');
+      document.getElementById('resetModal').classList.add('hidden');
+      document.getElementById('subSlotModal').classList.add('hidden');
+      document.getElementById('viewSummaryHeaderBtn').classList.add('hidden');
+      document.getElementById('simHeaderBtn').classList.add('hidden');
+
+      renderConceptBadges();
+      renderPitchSlots();
+      updateConnectionBadge();
+
+      if (networkMode !== 'client') {
+        generateNextOfferTriplet();
+        broadcastState();
+      }
+
+      updateUI();
+    }
+
+    function renderConceptBadges() {
+      const concept = FOOTBALL_DATABASE[activeConceptKey];
+      if (!concept) return;
+      const badge = document.getElementById('activeConceptBadge');
+      badge.innerHTML = `<span class="text-sm">${concept.badge}</span> ${concept.name}`;
+      
+      document.getElementById('pitchConceptWatermark').innerText = concept.name.toUpperCase();
+      document.getElementById('summaryConceptText').innerText = `${concept.badge} ${concept.name}`;
+    }
+
+    function openConceptModal() {
+      if (networkMode === 'client') {
+        showToast("⚠️ Konsepti yalnızca 1. Oyuncu (Host) değiştirebilir.");
+        return;
+      }
+      renderConceptCards();
+      document.getElementById('conceptModal').classList.remove('hidden');
+    }
+
+    function closeConceptModal() {
+      document.getElementById('conceptModal').classList.add('hidden');
+    }
+
+    function renderConceptCards() {
+      const container = document.getElementById('conceptCardsList');
+      container.innerHTML = '';
+
+      Object.keys(FOOTBALL_DATABASE).forEach(key => {
+        const item = FOOTBALL_DATABASE[key];
+        const isSelected = activeConceptKey === key;
+        const card = document.createElement('button');
+        card.className = `p-3 rounded-xl border text-left transition flex flex-col justify-between ${
+          isSelected 
+            ? 'bg-emerald-950/60 border-emerald-400 ring-2 ring-emerald-500/30' 
+            : 'bg-neutral-800/80 hover:bg-neutral-700/80 border-neutral-700'
+        }`;
+        card.onclick = () => {
+          selectConcept(key);
+          closeConceptModal();
+        };
+
+        card.innerHTML = `
+          <div>
+            <div class="text-2xl mb-1">${item.badge}</div>
+            <div class="text-xs font-bold text-white">${item.name}</div>
+          </div>
+          <div class="text-[10px] text-neutral-400 mt-2 line-clamp-2">${item.description}</div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function selectConcept(conceptKey) {
+      activeConceptKey = conceptKey;
+      renderConceptBadges();
+      showToast(`🏆 Konsept Belirlendi: ${FOOTBALL_DATABASE[conceptKey].name}`);
+      initGame();
+    }
+
+    function runConceptLottery() {
+      const keys = Object.keys(FOOTBALL_DATABASE);
+      const btn = document.getElementById('spinKuraBtn');
+      const text = document.getElementById('kuraBtnText');
+      btn.disabled = true;
+      btn.classList.add('opacity-75');
+
+      let counter = 0;
+      const interval = setInterval(() => {
+        const tempKey = keys[Math.floor(Math.random() * keys.length)];
+        text.innerText = `Kura: ${FOOTBALL_DATABASE[tempKey].badge} ${FOOTBALL_DATABASE[tempKey].name}`;
+        counter++;
+        if (counter > 14) {
+          clearInterval(interval);
+          const finalKey = keys[Math.floor(Math.random() * keys.length)];
+          activeConceptKey = finalKey;
+          text.innerText = `Kazanan: ${FOOTBALL_DATABASE[finalKey].badge} ${FOOTBALL_DATABASE[finalKey].name}!`;
+          playSound('kura');
+          setTimeout(() => {
+            btn.disabled = false;
+            btn.classList.remove('opacity-75');
+            text.innerText = `Rastgele Konsept Kurası Çek!`;
+            closeConceptModal();
+            selectConcept(finalKey);
+          }, 700);
+        }
+      }, 90);
+    }
+
+    /* ==========================================================================
+       7. 4-3-3 SAHA VE SLOT YÖNETİMİ
+       ========================================================================== */
+    function renderPitchSlots() {
+      FORMATION_SLOTS.forEach(slot => {
+        const slotEl = document.getElementById(`slot-${slot.id}`);
+        if (!slotEl) return;
+        slotEl.innerHTML = `
+          <div class="slot-container w-full max-w-[110px] mx-auto text-center transition">
+            <div class="slot-box border-2 border-dashed border-white/30 rounded-xl py-2 px-1 bg-black/40 backdrop-blur-xs flex flex-col items-center justify-center min-h-[58px]">
+              <span class="slot-pos-badge text-[10px] font-bold uppercase tracking-wider text-emerald-400/90">${slot.id}</span>
+              <span class="slot-player-name text-xs font-bold text-neutral-300 truncate w-full px-1">Boş</span>
+            </div>
+          </div>
+        `;
+      });
+      refreshPitchView();
+    }
+
+    function getAvailableSlotForPosition(playerNum, posType) {
+      const team = gameState.teams[playerNum] || gameState.teams[String(playerNum)] || {};
+      if (posType === 'CB') {
+        if (!team['CB1']) return 'CB1';
+        if (!team['CB2']) return 'CB2';
+        return null;
+      }
+      if (posType === 'CM') {
+        if (!team['CM1']) return 'CM1';
+        if (!team['CM2']) return 'CM2';
+        return null;
+      }
+      if (!team[posType]) return posType;
+      return null;
+    }
+
+    function getAvailablePosTypesForPlayer(playerNum) {
+      const posTypes = ['GK', 'LB', 'CB', 'RB', 'CM', 'CAM', 'LW', 'ST', 'RW'];
+      return posTypes.filter(p => getAvailableSlotForPosition(playerNum, p) !== null);
+    }
+
+    /* ==========================================================================
+       8. 3'LÜ ADAY ÜRETİMİ (SADECE BOŞ MEVKİLERDEN ÖNERİLMESİ KURALI)
+       ========================================================================== */
+    function generateNextOfferTriplet() {
+      const activeP = gameState.activePlayer;
+      const openPosTypes = getAvailablePosTypesForPlayer(activeP);
+
+      if (openPosTypes.length === 0) return;
+
+      const conceptData = FOOTBALL_DATABASE[activeConceptKey].players;
+
+      let eligiblePool = [];
+      openPosTypes.forEach(pos => {
+        const names = conceptData[pos] || [];
+        names.forEach(name => {
+          if (!gameState.usedPlayersSet.has(name)) {
+            eligiblePool.push({
+              name: name,
+              pos: pos,
+              label: POSITION_LABELS[pos]
+            });
+          }
+        });
+      });
+
+      if (eligiblePool.length < 3) {
+        openPosTypes.forEach(pos => {
+          const names = conceptData[pos] || [];
+          names.forEach(name => {
+            eligiblePool.push({
+              name: name,
+              pos: pos,
+              label: POSITION_LABELS[pos]
+            });
+          });
+        });
+      }
+
+      const shuffled = [...eligiblePool].sort(() => 0.5 - Math.random());
+
+      const p1 = shuffled[0] || null;
+      const p2Pool = shuffled.filter(p => p.name !== p1?.name);
+      const p2 = p2Pool[0] || p1;
+      const p3Pool = shuffled.filter(p => p.name !== p1?.name && p.name !== p2?.name);
+      const p3 = p3Pool[0] || (p2Pool[1] || p1);
+
+      gameState.currentCandidates = [p1, p2, p3];
+      gameState.offerStep = 1;
+    }
+
+    function getCurrentCandidate() {
+      return gameState.currentCandidates[gameState.offerStep - 1] || null;
+    }
+
+    /* ==========================================================================
+       9. SEÇİM VE PAS GEÇME MEKANİKLERİ
+       ========================================================================== */
+    function handlePickOffer() {
+      if (networkMode === 'client') {
+        if (gameState.activePlayer !== 2) return;
+        sendToHost({ type: 'CLIENT_ACTION', action: 'PICK' });
+        return;
+      }
+
+      const candidate = getCurrentCandidate();
+      if (!candidate) return;
+
+      const targetSlot = getAvailableSlotForPosition(gameState.activePlayer, candidate.pos);
+      if (!targetSlot) {
+        playSound('error');
+        alertUserPositionFull(candidate);
+        return;
+      }
+
+      playSound('pick');
+      if (!gameState.teams[gameState.activePlayer]) {
+        gameState.teams[gameState.activePlayer] = {};
+      }
+      gameState.teams[gameState.activePlayer][targetSlot] = candidate.name;
+      gameState.usedPlayersSet.add(candidate.name);
+
+      advanceTurn();
+    }
+
+    function handleSkipOffer() {
+      if (gameState.offerStep >= 3) return;
+
+      if (networkMode === 'client') {
+        if (gameState.activePlayer !== 2) return;
+        sendToHost({ type: 'CLIENT_ACTION', action: 'SKIP' });
+        return;
+      }
+
+      const candidate = getCurrentCandidate();
+      if (!candidate) return;
+
+      playSound('skip');
+
+      gameState.discarded.push({
+        name: candidate.name,
+        pos: candidate.pos,
+        label: candidate.label,
+        rejectedBy: gameState.activePlayer
+      });
+      gameState.usedPlayersSet.add(candidate.name);
+
+      gameState.offerStep++;
+      broadcastState();
+      updateUI();
+    }
+
+    function alertUserPositionFull(candidate) {
+      const hint = document.getElementById('slotStatusHint');
+      hint.className = "text-xs font-bold flex items-center justify-center gap-1.5 mt-1 text-red-400 animate-bounce";
+      hint.innerHTML = `<i class="ph-bold ph-warning-octagon"></i> Bu mevki (${candidate.pos}) kadronuzda dolu! Pas geçin.`;
+    }
+
+    function advanceTurn() {
+      const p1Full = getTeamCount(1) >= 11;
+      const p2Full = getTeamCount(2) >= 11;
+
+      if (p1Full && p2Full) {
+        startJokerPhaseHost();
+        return;
+      }
+
+      if (gameState.activePlayer === 1) {
+        if (!p2Full) {
+          gameState.activePlayer = 2;
+        }
+      } else {
+        if (!p1Full) {
+          gameState.activePlayer = 1;
+        }
+        gameState.roundCount++;
+      }
+
+      generateNextOfferTriplet();
+      playSound('turn');
+      broadcastState();
+      updateUI();
+    }
+
+    /* ==========================================================================
+       10. OPSİYONEL JOKER VE DEĞİŞİKLİK SİSTEMİ
+       ========================================================================== */
+    function startJokerPhaseHost() {
+      gameState.isJokerPhase = true;
+      gameState.jokerTurn = 1;
+      playSound('joker');
+      showToast("🌟 11'ler Tamamlandı! Opsiyonel Joker Aşaması Başladı.");
+      broadcastState();
+      updateUI();
+    }
+
+    function renderJokerOptions() {
+      const container = document.getElementById('jokerCandidatesList');
+      container.innerHTML = '';
+
+      const userNum = gameState.jokerTurn;
+      const rivalNum = userNum === 1 ? 2 : 1;
+      const eligiblePool = gameState.discarded.filter(item => item.rejectedBy === rivalNum);
+
+      const isMyTurn = (networkMode === 'local') || (networkMode === 'host' && userNum === 1) || (networkMode === 'client' && userNum === 2);
+
+      const instruction = document.getElementById('jokerPhaseInstruction');
+      instruction.innerHTML = `
+        <strong class="${userNum === 1 ? 'text-blue-400' : 'text-red-400'} text-sm">${userNum}. Oyuncu Sırası:</strong> 
+        Rakibinin (${rivalNum}. Oyuncu) elediği havuzdan <span class="text-amber-300 font-bold">1 oyuncu</span> seçerek 11'indeki ilgili mevkiyle değiştirebilirsin veya <strong>"Joker Kullanma"</strong> seçeneğiyle mevcut kadronu koruyabilirsin.
+      `;
+
+      if (eligiblePool.length === 0) {
+        container.innerHTML = `
+          <div class="p-3 bg-neutral-900 border border-neutral-800 rounded-xl text-neutral-400 text-xs text-center">
+            Rakibin pas geçtiği uygun oyuncu bulunamadı.
+            ${isMyTurn ? '<button onclick="skipJokerPhase()" class="mt-2 text-xs font-bold text-amber-400 underline block mx-auto">Bu turu pas geç ve devam et</button>' : ''}
+          </div>
+        `;
+        return;
+      }
+
+      eligiblePool.forEach(item => {
+        const row = document.createElement('div');
+        row.className = "flex items-center justify-between p-2.5 rounded-xl bg-neutral-900/90 border border-neutral-700/80 hover:border-amber-500 transition";
+        
+        let existingPlayerText = "";
+        const userTeam = gameState.teams[userNum] || gameState.teams[String(userNum)] || {};
+        if (item.pos === 'CB') {
+          existingPlayerText = `(Değişecek: ${userTeam['CB1'] || 'CB1'} veya ${userTeam['CB2'] || 'CB2'})`;
+        } else if (item.pos === 'CM') {
+          existingPlayerText = `(Değişecek: ${userTeam['CM1'] || 'CM1'} veya ${userTeam['CM2'] || 'CM2'})`;
+        } else {
+          existingPlayerText = `(Değişecek: ${userTeam[item.pos] || item.pos})`;
+        }
+
+        row.innerHTML = `
+          <div class="flex flex-col">
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">${item.pos}</span>
+              <span class="text-sm font-semibold text-white">${item.name}</span>
+            </div>
+            <span class="text-[10px] text-neutral-400 mt-0.5">${existingPlayerText}</span>
+          </div>
+          ${isMyTurn ? `
+            <button onclick="promptJokerSubstitution('${item.name.replace(/'/g, "\\'")}', '${item.pos}')" class="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold text-xs flex items-center gap-1 shadow">
+              <i class="ph-bold ph-swap"></i> Değiştir
+            </button>
+          ` : `
+            <span class="text-[10px] text-neutral-500 italic">Rakip Bekleniyor</span>
+          `}
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    function skipJokerPhase() {
+      const userNum = gameState.jokerTurn;
+
+      if (networkMode === 'client') {
+        if (userNum !== 2) return;
+        const btn = document.getElementById('skipJokerBtn');
+        if (btn) btn.innerHTML = "<span>İletiliyor...</span>";
+        sendToHost({ type: 'CLIENT_ACTION', action: 'SKIP_JOKER' });
+        return;
+      }
+
+      playSound('skip');
+      showToast(`${userNum}. Oyuncu joker kullanmadı, kadrosunu korudu.`);
+      finishJokerTurn();
+    }
+
+    function promptJokerSubstitution(jokerName, jokerPos) {
+      const userNum = gameState.jokerTurn;
+      const userTeam = gameState.teams[userNum] || gameState.teams[String(userNum)] || {};
+
+      if (jokerPos === 'CB') {
+        openMultiSlotModal(jokerName, 'CB', [
+          { slotId: 'CB1', currentName: userTeam['CB1'] || 'CB1' },
+          { slotId: 'CB2', currentName: userTeam['CB2'] || 'CB2' }
+        ]);
+        return;
+      }
+
+      if (jokerPos === 'CM') {
+        openMultiSlotModal(jokerName, 'CM', [
+          { slotId: 'CM1', currentName: userTeam['CM1'] || 'CM1' },
+          { slotId: 'CM2', currentName: userTeam['CM2'] || 'CM2' }
+        ]);
+        return;
+      }
+
+      executeSubstitution(userNum, jokerPos, jokerName, userTeam[jokerPos]);
+    }
+
+    function openMultiSlotModal(jokerName, posType, options) {
+      pendingSub = { jokerName, posType };
+      document.getElementById('subModalJokerName').innerText = `${jokerName} (${posType})`;
+
+      const choicesContainer = document.getElementById('subModalChoices');
+      choicesContainer.innerHTML = '';
+
+      options.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.className = "p-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 hover:border-amber-400 text-left transition flex flex-col justify-between";
+        btn.innerHTML = `
+          <div>
+            <span class="text-[10px] uppercase font-bold text-amber-400">${opt.slotId}</span>
+            <div class="text-xs font-bold text-white mt-1 truncate">${opt.currentName}</div>
+          </div>
+          <span class="text-[10px] text-emerald-400 mt-2 font-medium flex items-center gap-1">
+            <i class="ph-bold ph-swap"></i> Bununla Değiş
+          </span>
+        `;
+        btn.onclick = () => {
+          closeSubModal();
+          executeSubstitution(gameState.jokerTurn, opt.slotId, jokerName, opt.currentName);
+        };
+        choicesContainer.appendChild(btn);
+      });
+
+      document.getElementById('subSlotModal').classList.remove('hidden');
+    }
+
+    function closeSubModal() {
+      document.getElementById('subSlotModal').classList.add('hidden');
+      pendingSub = null;
+    }
+
+    function executeSubstitution(userNum, slotId, jokerName, oldPlayerName) {
+      if (networkMode === 'client' && userNum === 2) {
+        sendToHost({
+          type: 'CLIENT_ACTION',
+          action: 'DO_JOKER_SUB',
+          userNum,
+          slotId,
+          jokerName,
+          oldPlayer: oldPlayerName
+        });
+        return;
+      }
+
+      playSound('swap');
+      if (!gameState.teams[userNum]) gameState.teams[userNum] = {};
+      gameState.teams[userNum][slotId] = jokerName;
+
+      gameState.jokerSubs[userNum] = {
+        newPlayer: jokerName,
+        oldPlayer: oldPlayerName,
+        slotId: slotId
+      };
+
+      const idx = gameState.discarded.findIndex(item => item.name === jokerName);
+      if (idx > -1) gameState.discarded.splice(idx, 1);
+
+      showToast(`🔄 Değişiklik: ${oldPlayerName} ➡️ ${jokerName} (${slotId})`);
+      finishJokerTurn();
+    }
+
+    function finishJokerTurn() {
+      if (gameState.jokerTurn === 1) {
+        gameState.jokerTurn = 2;
+        playSound('turn');
+        broadcastState();
+        updateUI();
+      } else {
+        gameState.isComplete = true;
+        gameState.isJokerPhase = false;
+        broadcastState();
+        updateUI();
+        document.getElementById('viewSummaryHeaderBtn').classList.remove('hidden');
+        if (networkMode !== 'client') {
+          document.getElementById('simHeaderBtn').classList.remove('hidden');
+        } else {
+          document.getElementById('simHeaderBtn').classList.add('hidden');
+        }
+        setTimeout(() => {
+          showSummaryModal();
+        }, 120);
+      }
+    }
+
+    /* ==========================================================================
+       11. ARAYÜZ VE SAHA GÜNCELLEMESİ (UI UPDATE)
+       ========================================================================== */
+    function updateUI() {
+      const p1Count = getTeamCount(1);
+      const p2Count = getTeamCount(2);
+      document.getElementById('p1Count').innerText = p1Count;
+      document.getElementById('p2Count').innerText = p2Count;
+
+      const activeSquadCount = getTeamCount(gameState.activePlayer);
+      document.getElementById('squadProgress').innerText = `${activeSquadCount}/11`;
+
+      // Pitch tabs styling
+      const tab1 = document.getElementById('tabP1Btn');
+      const tab2 = document.getElementById('tabP2Btn');
+      if (localPitchView === 1) {
+        tab1.className = 'py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition bg-blue-600 text-white shadow';
+        tab2.className = 'py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition text-neutral-400 hover:text-neutral-200';
+        document.getElementById('pitchWatermark').innerText = '1. Oyuncu';
+      } else {
+        tab2.className = 'py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition bg-red-600 text-white shadow';
+        tab1.className = 'py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition text-neutral-400 hover:text-neutral-200';
+        document.getElementById('pitchWatermark').innerText = '2. Oyuncu';
+      }
+
+      // Check Joker Phase
+      if (gameState.isJokerPhase) {
+        document.getElementById('draftCardContainer').classList.add('hidden');
+        document.getElementById('jokerSelectionPanel').classList.remove('hidden');
+        document.getElementById('turnLabel').innerHTML = `Joker Sırası: <span class="${gameState.jokerTurn === 1 ? 'text-blue-400' : 'text-red-400'} font-bold">${gameState.jokerTurn}. Oyuncu</span>`;
+        document.getElementById('turnIndicatorDot').className = `w-3 h-3 rounded-full ${gameState.jokerTurn === 1 ? 'bg-blue-500' : 'bg-red-500'} animate-ping`;
+
+        // Turn Wait Blocker for Joker
+        const jokerWait = document.getElementById('jokerWaitBlocker');
+        const isMyJokerTurn = (networkMode === 'local') || (networkMode === 'host' && gameState.jokerTurn === 1) || (networkMode === 'client' && gameState.jokerTurn === 2);
+        if (!isMyJokerTurn) {
+          jokerWait.classList.remove('hidden');
+          document.getElementById('jokerWaitText').innerText = `${gameState.jokerTurn}. Oyuncu joker tercihini yapıyor...`;
+        } else {
+          jokerWait.classList.add('hidden');
+        }
+
+        renderJokerOptions();
+        refreshPitchView();
+        renderDiscardedPool();
+        return;
+      }
+
+      // If draft complete
+      if (gameState.isComplete) {
+        document.getElementById('draftCardContainer').classList.add('hidden');
+        document.getElementById('jokerSelectionPanel').classList.add('hidden');
+        document.getElementById('turnLabel').innerHTML = `<span class="text-emerald-400 font-bold">Draft Tamamlandı</span>`;
+        document.getElementById('turnIndicatorDot').className = `w-3 h-3 rounded-full bg-emerald-500`;
+        refreshPitchView();
+        renderDiscardedPool();
+        return;
+      }
+
+      // Normal Draft Turn
+      document.getElementById('draftCardContainer').classList.remove('hidden');
+      document.getElementById('jokerSelectionPanel').classList.add('hidden');
+
+      const candidate = getCurrentCandidate();
+      const pName = gameState.activePlayer === 1 ? "1. Oyuncu" : "2. Oyuncu";
+      const pColorClass = gameState.activePlayer === 1 ? "text-blue-400" : "text-red-400";
+      const pBadgeBg = gameState.activePlayer === 1 ? "bg-blue-500/20 text-blue-400 border-blue-500/30" : "bg-red-500/20 text-red-400 border-red-500/30";
+      const pDotBg = gameState.activePlayer === 1 ? "bg-blue-500" : "bg-red-500";
+
+      document.getElementById('turnLabel').innerHTML = `Sıra: <span class="${pColorClass} font-bold">${pName}</span>`;
+      document.getElementById('turnIndicatorDot').className = `w-3 h-3 rounded-full ${pDotBg} animate-ping`;
+
+      const playerBadgePill = document.getElementById('playerBadgePill');
+      playerBadgePill.className = `text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded border ${pBadgeBg}`;
+      playerBadgePill.innerText = `${pName} Seçiyor`;
+
+      document.getElementById('offerNumberText').innerText = gameState.offerStep;
+      document.getElementById('currentRoundInfo').innerText = `Tur #${gameState.roundCount}`;
+
+      // Multiplayer Turn Wait Blocker
+      const turnWait = document.getElementById('turnWaitBlocker');
+      const isMyDraftTurn = (networkMode === 'local') || (networkMode === 'host' && gameState.activePlayer === 1) || (networkMode === 'client' && gameState.activePlayer === 2);
+      if (!isMyDraftTurn) {
+        turnWait.classList.remove('hidden');
+        document.getElementById('turnWaitText').innerText = `${pName} kart seçimi yapıyor...`;
+      } else {
+        turnWait.classList.add('hidden');
+      }
+
+      if (candidate) {
+        document.getElementById('candidatePos').innerText = candidate.label.toUpperCase();
+        document.getElementById('candidateName').innerText = candidate.name;
+
+        const targetSlot = getAvailableSlotForPosition(gameState.activePlayer, candidate.pos);
+        const slotHint = document.getElementById('slotStatusHint');
+        const pickBtn = document.getElementById('pickBtn');
+
+        if (targetSlot) {
+          slotHint.className = "text-xs font-medium flex items-center justify-center gap-1.5 mt-1 text-emerald-400";
+          slotHint.innerHTML = `<i class="ph-bold ph-check-circle"></i> 4-3-3 Açık Mevkine Yerleşecek (${targetSlot})`;
+          pickBtn.disabled = false;
+          pickBtn.classList.remove('opacity-40', 'cursor-not-allowed', 'bg-neutral-700');
+          pickBtn.classList.add('bg-emerald-600', 'hover:bg-emerald-500');
+        } else {
+          slotHint.className = "text-xs font-bold flex items-center justify-center gap-1.5 mt-1 text-red-400";
+          slotHint.innerHTML = `<i class="ph-bold ph-x-circle"></i> Bu mevki dolu! Pas geçin.`;
+          pickBtn.disabled = true;
+          pickBtn.classList.add('opacity-40', 'cursor-not-allowed', 'bg-neutral-700');
+          pickBtn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500');
+        }
+      }
+
+      // Step Dots
+      for (let i = 1; i <= 3; i++) {
+        const dot = document.getElementById(`stepDot${i}`);
+        if (i < gameState.offerStep) {
+          dot.className = "w-2.5 h-2.5 rounded-full bg-red-500/60";
+        } else if (i === gameState.offerStep) {
+          dot.className = "w-3 h-3 rounded-full bg-emerald-400 ring-2 ring-emerald-500/40 scale-125";
+        } else {
+          dot.className = "w-2.5 h-2.5 rounded-full bg-neutral-700";
+        }
+      }
+
+      // Skip & Pick buttons behavior
+      const skipBtn = document.getElementById('skipBtn');
+      const pickBtn = document.getElementById('pickBtn');
+      const buttonsArea = document.getElementById('decisionButtonsArea');
+
+      if (gameState.offerStep === 3) {
+        skipBtn.classList.add('hidden');
+        buttonsArea.classList.remove('grid-cols-2');
+        buttonsArea.classList.add('grid-cols-1');
+
+        pickBtn.innerHTML = `<i class="ph-bold ph-lock text-amber-300"></i><span>Zorunlu Seçim: Takıma Al</span>`;
+        pickBtn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500');
+        pickBtn.classList.add('bg-amber-600', 'hover:bg-amber-500');
+
+        document.getElementById('strategyNotice').innerHTML = `
+          <i class="ph-bold ph-warning text-amber-400 inline-block mr-1"></i>
+          İlk 2 oyuncuyu pas geçtiniz! 3. oyuncuyu <strong>zorunlu olarak</strong> kadronuza alıyorsunuz.
+        `;
+      } else {
+        skipBtn.classList.remove('hidden');
+        buttonsArea.classList.add('grid-cols-2');
+        buttonsArea.classList.remove('grid-cols-1');
+
+        skipBtn.innerHTML = `<i class="ph-bold ph-x-circle text-red-400 group-hover:scale-110 transition"></i><span>Pas Geç (Alma)</span>`;
+        pickBtn.innerHTML = `<i class="ph-bold ph-check-circle text-white group-hover:scale-110 transition"></i><span>Takıma Al</span>`;
+        pickBtn.classList.remove('bg-amber-600', 'hover:bg-amber-500');
+        pickBtn.classList.add('bg-emerald-600', 'hover:bg-emerald-500');
+
+        document.getElementById('strategyNotice').innerHTML = `
+          <i class="ph-bold ph-info inline-block mr-1 text-emerald-400"></i>
+          İlk 2 oyuncuyu pas geçerseniz 3. oyuncuyu almak zorundasınız!
+        `;
+      }
+
+      refreshPitchView();
+      renderDiscardedPool();
+    }
+
+    function refreshPitchView() {
+      const activeTeam = gameState.teams[localPitchView] || gameState.teams[String(localPitchView)] || {};
+      const candidate = getCurrentCandidate();
+      const targetSlot = (candidate && !gameState.isJokerPhase && localPitchView === gameState.activePlayer) 
+        ? getAvailableSlotForPosition(gameState.activePlayer, candidate.pos) 
+        : null;
+
+      const subInfo = gameState.jokerSubs[localPitchView] || gameState.jokerSubs[String(localPitchView)];
+
+      FORMATION_SLOTS.forEach(slot => {
+        const slotEl = document.getElementById(`slot-${slot.id}`);
+        if (!slotEl) return;
+        const box = slotEl.querySelector('.slot-box');
+        const posText = slotEl.querySelector('.slot-pos-badge');
+        const nameText = slotEl.querySelector('.slot-player-name');
+
+        const playerFilled = activeTeam[slot.id];
+        const isJokerPlayer = subInfo && subInfo.slotId === slot.id;
+
+        if (playerFilled) {
+          if (isJokerPlayer) {
+            box.className = "slot-box border-2 border-amber-400 rounded-xl py-2 px-1 bg-amber-950/60 slot-glow-joker shadow-md backdrop-blur-sm flex flex-col items-center justify-center min-h-[58px]";
+            posText.className = "slot-pos-badge text-[10px] font-black uppercase tracking-wider text-amber-300 flex items-center gap-1";
+            posText.innerHTML = `<i class="ph-fill ph-star text-amber-400"></i> ${slot.id} (JOKER)`;
+            nameText.className = "slot-player-name text-xs font-black text-amber-200 truncate w-full px-1";
+            nameText.innerText = playerFilled;
+          } else {
+            box.className = "slot-box border-2 border-emerald-500/70 rounded-xl py-2 px-1 bg-neutral-900/90 shadow-md backdrop-blur-sm flex flex-col items-center justify-center min-h-[58px]";
+            posText.className = "slot-pos-badge text-[10px] font-bold uppercase tracking-wider text-emerald-400";
+            posText.innerText = slot.id;
+            nameText.className = "slot-player-name text-xs font-extrabold text-white truncate w-full px-1";
+            nameText.innerText = playerFilled;
+          }
+        } else {
+          if (targetSlot === slot.id) {
+            box.className = "slot-box border-2 border-emerald-400 rounded-xl py-2 px-1 bg-emerald-950/40 slot-glow-target flex flex-col items-center justify-center min-h-[58px]";
+            posText.className = "slot-pos-badge text-[10px] font-bold uppercase tracking-wider text-emerald-300";
+            posText.innerText = slot.id;
+            nameText.className = "slot-player-name text-xs font-bold text-emerald-300 italic";
+            nameText.innerText = "Hedef Mevki";
+          } else {
+            box.className = "slot-box border-2 border-dashed border-white/20 rounded-xl py-2 px-1 bg-black/40 backdrop-blur-xs flex flex-col items-center justify-center min-h-[58px]";
+            posText.className = "slot-pos-badge text-[10px] font-bold uppercase tracking-wider text-neutral-400";
+            posText.innerText = slot.id;
+            nameText.className = "slot-player-name text-xs font-semibold text-neutral-500 truncate w-full px-1";
+            nameText.innerText = "Boş";
+          }
+        }
+      });
+
+      const jokerBadge = document.getElementById('jokerBadgeSlot');
+      const jokerName = document.getElementById('jokerAssignedName');
+      if (subInfo) {
+        jokerBadge.classList.remove('hidden');
+        jokerName.innerHTML = `<span class="text-amber-300 font-bold">${subInfo.newPlayer}</span> <span class="text-[10px] text-neutral-300">(${subInfo.oldPlayer} yerine)</span>`;
+      } else {
+        jokerBadge.classList.add('hidden');
+      }
+    }
+
+    function switchPitchView(playerKey) {
+      localPitchView = playerKey === 'p1' ? 1 : 2;
+      updateUI();
+    }
+
+    function renderDiscardedPool() {
+      const container = document.getElementById('discardedList');
+      const countBadge = document.getElementById('discardCountBadge');
+      countBadge.innerText = `${gameState.discarded.length} Oyuncu`;
+
+      if (gameState.discarded.length === 0) {
+        container.innerHTML = '<span class="text-neutral-500 text-xs italic p-2">Henüz pas geçilen oyuncu yok.</span>';
+        return;
+      }
+
+      container.innerHTML = '';
+      gameState.discarded.forEach(item => {
+        const badge = document.createElement('span');
+        const isP1Discard = item.rejectedBy === 1;
+        badge.className = `text-[11px] px-2 py-0.5 rounded-lg border font-mono flex items-center gap-1.5 ${
+          isP1Discard 
+            ? 'bg-blue-950/40 text-blue-300 border-blue-800/60' 
+            : 'bg-red-950/40 text-red-300 border-red-800/60'
+        }`;
+        badge.innerHTML = `
+          <span class="opacity-60 text-[9px] uppercase font-sans">${item.pos}</span>
+          <span>${item.name}</span>
+          <span class="w-1.5 h-1.5 rounded-full ${isP1Discard ? 'bg-blue-400' : 'bg-red-400'}" title="${item.rejectedBy}. Oyuncu reddetti"></span>
+        `;
+        container.appendChild(badge);
+      });
+    }
+
+    /* ==========================================================================
+       12. ÖZET EKRANI VE YENİDEN BAŞLATMA
+       ========================================================================== */
+    function showSummaryModal() {
+      const p1List = document.getElementById('p1FinalRoster');
+      const p2List = document.getElementById('p2FinalRoster');
+      if (!p1List || !p2List) return;
+      p1List.innerHTML = '';
+      p2List.innerHTML = '';
+
+      const t1 = gameState.teams[1] || gameState.teams['1'] || {};
+      const t2 = gameState.teams[2] || gameState.teams['2'] || {};
+      const s1 = gameState.jokerSubs[1] || gameState.jokerSubs['1'];
+      const s2 = gameState.jokerSubs[2] || gameState.jokerSubs['2'];
+
+      FORMATION_SLOTS.forEach(slot => {
+        const p1p = t1[slot.id] || "Seçilmedi";
+        const p2p = t2[slot.id] || "Seçilmedi";
+
+        const isP1Joker = s1 && s1.slotId === slot.id;
+        const isP2Joker = s2 && s2.slotId === slot.id;
+
+        p1List.innerHTML += `
+          <li class="flex justify-between items-center py-0.5 border-b border-neutral-900 ${isP1Joker ? 'text-amber-300 font-bold bg-amber-500/10 px-1 rounded' : ''}">
+            <span class="text-neutral-500 font-bold flex items-center gap-1">${slot.id}: ${isP1Joker ? '<i class="ph-fill ph-star text-amber-400 text-[10px]"></i>' : ''}</span>
+            <span class="${isP1Joker ? 'text-amber-200' : 'text-white'} truncate max-w-[150px]">${p1p}</span>
+          </li>`;
+
+        p2List.innerHTML += `
+          <li class="flex justify-between items-center py-0.5 border-b border-neutral-900 ${isP2Joker ? 'text-amber-300 font-bold bg-amber-500/10 px-1 rounded' : ''}">
+            <span class="text-neutral-500 font-bold flex items-center gap-1">${slot.id}: ${isP2Joker ? '<i class="ph-fill ph-star text-amber-400 text-[10px]"></i>' : ''}</span>
+            <span class="${isP2Joker ? 'text-amber-200' : 'text-white'} truncate max-w-[150px]">${p2p}</span>
+          </li>`;
+      });
+
+      document.getElementById('p1FinalJoker').innerHTML = s1 
+        ? `🌟 Joker Değişikliği: <strong class="text-white">${s1.newPlayer}</strong> (${s1.oldPlayer} yerine)` 
+        : '🌟 Joker: Tercih edilmedi (Orijinal 11 korundu)';
+
+      document.getElementById('p2FinalJoker').innerHTML = s2 
+        ? `🌟 Joker Değişikliği: <strong class="text-white">${s2.newPlayer}</strong> (${s2.oldPlayer} yerine)` 
+        : '🌟 Joker: Tercih edilmedi (Orijinal 11 korundu)';
+
+      // 2. Oyuncu (Client) ve 1. Oyuncu (Host) kontrollerini ayır
+      const isClient = networkMode === 'client';
+      const hostControls = document.getElementById('summaryHostControls');
+      const clientControls = document.getElementById('summaryClientControls');
+
+      if (hostControls && clientControls) {
+        if (isClient) {
+          hostControls.classList.add('hidden');
+          clientControls.classList.remove('hidden');
+        } else {
+          hostControls.classList.remove('hidden');
+          clientControls.classList.add('hidden');
+        }
+      }
+
+      const modal = document.getElementById('summaryModal');
+      modal.classList.remove('hidden');
+      modal.style.display = 'flex';
+    }
+
+    function closeSummaryModal() {
+      const modal = document.getElementById('summaryModal');
+      modal.classList.add('hidden');
+      modal.style.display = 'none';
+    }
+
+    function resetGameModal() {
+      document.getElementById('resetModal').classList.remove('hidden');
+    }
+
+    function confirmReset() {
+      document.getElementById('resetModal').classList.add('hidden');
+      startFreshGame();
+    }
+
+    function startFreshGame() {
+      if (networkMode === 'client') {
+        sendToHost({ type: 'CLIENT_ACTION', action: 'RESTART' });
+        closeSummaryModal();
+        const simModal = document.getElementById('matchSimulationModal');
+        if (simModal) {
+          simModal.classList.add('hidden');
+          simModal.style.display = 'none';
+        }
+        showToast("🔄 Yeni draft isteği iletildi...");
+        return;
+      }
+
+      closeSummaryModal();
+      if (simInterval) {
+        clearInterval(simInterval);
+        simInterval = null;
+      }
+      const simModal = document.getElementById('matchSimulationModal');
+      if (simModal) {
+        simModal.classList.add('hidden');
+        simModal.style.display = 'none';
+      }
+
+      initGame();
+      showToast("🔄 Yeni Draft Başlatıldı!");
+    }
+
+    /* ==========================================================================
+       13. 90 DAKİKALIK CANLI MAÇ SİMÜLASYONU MOTORU
+       ========================================================================== */
+    function triggerMatchSimulation() {
+      if (networkMode === 'client') {
+        showToast("⚠️ Maç simülasyonunu yalnızca 1. Oyuncu (Host) başlatabilir.");
+        return;
+      }
+      startMatchSimulationHost();
+    }
+
+    function handleSimCloseRequest() {
+      if (networkMode === 'client') {
+        sendToHost({ type: 'CLIENT_ACTION', action: 'CLOSE_SIM' });
+        executeCloseSimUI();
+        return;
+      }
+      closeMatchSimulation();
+    }
+
+    function calculateTeamRating(playerNum) {
+      const team = gameState.teams[playerNum] || gameState.teams[String(playerNum)] || {};
+      let total = 0;
+      let count = 0;
+      FORMATION_SLOTS.forEach(slot => {
+        const pName = team[slot.id];
+        if (pName) {
+          total += getPlayerAbility(pName);
+          count++;
+        }
+      });
+      return { total, count, avg: count > 0 ? (total / count).toFixed(1) : 0 };
+    }
+
+    function openSimModalForView() {
+      closeSummaryModal();
+      const modal = document.getElementById('matchSimulationModal');
+      modal.classList.remove('hidden');
+      modal.style.display = 'flex';
+
+      document.getElementById('simScore1').innerText = "0";
+      document.getElementById('simScore2').innerText = "0";
+      document.getElementById('simClock').innerText = "00'";
+      document.getElementById('simCommentaryLog').innerHTML = '<div class="text-xs text-neutral-400 italic text-center py-2">Hakem düdüğü çaldı, maç başladı...</div>';
+      document.getElementById('simWinnerBanner').classList.add('hidden');
+      document.getElementById('simReplayBtn').classList.add('hidden');
+    }
+
+    function startMatchSimulationHost() {
+      if (simInterval) clearInterval(simInterval);
+
+      openSimModalForView();
+
+      if (networkMode === 'host') {
+        sendToClient({ type: 'SIM_START' });
+      }
+
+      const r1 = calculateTeamRating(1);
+      const r2 = calculateTeamRating(2);
+
+      const team1 = gameState.teams[1] || gameState.teams['1'] || {};
+      const team2 = gameState.teams[2] || gameState.teams['2'] || {};
+
+      const attackers1 = [team1['ST'], team1['LW'], team1['RW'], team1['CAM'], team1['CM1']].filter(Boolean);
+      const attackers2 = [team2['ST'], team2['LW'], team2['RW'], team2['CAM'], team2['CM1']].filter(Boolean);
+
+      const diff = r1.total - r2.total;
+      let goals1 = 0;
+      let goals2 = 0;
+
+      if (diff > 5) {
+        goals1 = 2 + Math.floor(Math.random() * 3);
+        goals2 = Math.floor(Math.random() * 2);
+      } else if (diff > 1) {
+        goals1 = 2 + Math.floor(Math.random() * 2);
+        goals2 = 1 + Math.floor(Math.random() * 2);
+        if (goals1 <= goals2) goals1 = goals2 + 1;
+      } else if (diff < -5) {
+        goals2 = 2 + Math.floor(Math.random() * 3);
+        goals1 = Math.floor(Math.random() * 2);
+      } else if (diff < -1) {
+        goals2 = 2 + Math.floor(Math.random() * 2);
+        goals1 = 1 + Math.floor(Math.random() * 2);
+        if (goals2 <= goals1) goals2 = goals1 + 1;
+      } else {
+        const rand = Math.random();
+        if (rand < 0.4) { goals1 = 2; goals2 = 1; }
+        else if (rand < 0.8) { goals1 = 1; goals2 = 2; }
+        else { goals1 = 2; goals2 = 2; }
+      }
+
+      let events = [];
+      for (let g = 0; g < goals1; g++) {
+        const scorer = attackers1[Math.floor(Math.random() * attackers1.length)] || "1. Oyuncu Forveti";
+        events.push({
+          minute: Math.floor(8 + Math.random() * 80),
+          type: 'GOAL',
+          team: 1,
+          scorer: scorer,
+          text: `⚽ GOOOL! 1. Oyuncunun yıldızı ${scorer} harika bir vuruşla topu ağlara yolladı!`
+        });
+      }
+      for (let g = 0; g < goals2; g++) {
+        const scorer = attackers2[Math.floor(Math.random() * attackers2.length)] || "2. Oyuncu Forveti";
+        events.push({
+          minute: Math.floor(8 + Math.random() * 80),
+          type: 'GOAL',
+          team: 2,
+          scorer: scorer,
+          text: `⚽ GOOOL! 2. Oyuncuda ${scorer} ceza sahası dışından sert vurdu ve gol!`
+        });
+      }
+
+      events.push({
+        minute: 24,
+        type: 'MISS',
+        text: `🧤 Tehlikeli Atak! Kaleci muhteşem bir refleksle golü önledi.`
+      });
+      events.push({
+        minute: 67,
+        type: 'MISS',
+        text: `💥 Direkten Döndü! Top üst direkte patladı!`
+      });
+
+      events.sort((a, b) => a.minute - b.minute);
+
+      let winner = "DRAW";
+      if (goals1 > goals2) winner = "P1";
+      else if (goals2 > goals1) winner = "P2";
+
+      let currentMin = 0;
+      let s1 = 0;
+      let s2 = 0;
+
+      simInterval = setInterval(() => {
+        currentMin += 3;
+        if (currentMin > 90) currentMin = 90;
+
+        let occurredEvents = [];
+        events.forEach(ev => {
+          if (ev.minute <= currentMin && !ev.processed) {
+            ev.processed = true;
+            if (ev.type === 'GOAL') {
+              if (ev.team === 1) s1++;
+              else s2++;
+            }
+            occurredEvents.push(ev);
+          }
+        });
+
+        const isFinished = currentMin >= 90;
+
+        const tickData = {
+          currentMin,
+          s1,
+          s2,
+          occurredEvents,
+          isFinished,
+          winner
+        };
+
+        applySimTick(tickData);
+
+        if (networkMode === 'host') {
+          sendToClient({
+            type: 'SIM_TICK',
+            ...tickData
+          });
+        }
+
+        if (isFinished) {
+          clearInterval(simInterval);
+          simInterval = null;
+        }
+      }, 140);
+    }
+
+    function applySimTick(data) {
+      const clockEl = document.getElementById('simClock');
+      const score1El = document.getElementById('simScore1');
+      const score2El = document.getElementById('simScore2');
+      const logEl = document.getElementById('simCommentaryLog');
+      const winnerBanner = document.getElementById('simWinnerBanner');
+      const winnerText = document.getElementById('simWinnerText');
+      const winnerDesc = document.getElementById('simWinnerDesc');
+      const replayBtn = document.getElementById('simReplayBtn');
+
+      clockEl.innerText = data.isFinished ? "90' (BİTTİ)" : `${data.currentMin}'`;
+      score1El.innerText = data.s1;
+      score2El.innerText = data.s2;
+
+      if (data.occurredEvents && data.occurredEvents.length > 0) {
+        data.occurredEvents.forEach(ev => {
+          if (ev.type === 'GOAL') {
+            playSound('goal');
+            logEl.innerHTML = `<div class="p-2 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-xs font-semibold text-emerald-300 animate-pulse">${ev.minute}' &bull; ${ev.text}</div>` + logEl.innerHTML;
+          } else {
+            logEl.innerHTML = `<div class="p-2 rounded-lg bg-neutral-900 border border-neutral-800 text-xs text-neutral-300">${ev.minute}' &bull; ${ev.text}</div>` + logEl.innerHTML;
+          }
+        });
+      }
+
+      if (data.isFinished) {
+        winnerBanner.classList.remove('hidden');
+        if (networkMode !== 'client') {
+          replayBtn.classList.remove('hidden');
+        } else {
+          replayBtn.classList.add('hidden');
+        }
+
+        if (data.winner === 'P1') {
+          winnerText.innerHTML = `🏆 1. OYUNCU MAÇI KAZANDI! (${data.s1} - ${data.s2})`;
+          winnerDesc.innerText = `1. Oyuncunun 11'i taktik üstünlüğü ve bitiriciliğiyle sahadan galip ayrıldı!`;
+        } else if (data.winner === 'P2') {
+          winnerText.innerHTML = `🏆 2. OYUNCU MAÇI KAZANDI! (${data.s2} - ${data.s1})`;
+          winnerDesc.innerText = `2. Oyuncunun 11'i taktik üstünlüğü ve bitiriciliğiyle kupaya uzandı!`;
+        } else {
+          winnerText.innerHTML = `🤝 NEFES KESEN MAÇ BERABERE BİTTİ! (${data.s1} - ${data.s2})`;
+          winnerDesc.innerText = `İki takım da denk güçleriyle kıran kırana mücadele etti.`;
+        }
+      }
+    }
+
+    function handleRemoteSimTick(packet) {
+      applySimTick(packet);
+    }
+
+    function executeCloseSimUI() {
+      if (simInterval) clearInterval(simInterval);
+      const modal = document.getElementById('matchSimulationModal');
+      modal.classList.add('hidden');
+      modal.style.display = 'none';
+      showSummaryModal();
+    }
+
+    function closeMatchSimulation() {
+      executeCloseSimUI();
+      if (networkMode === 'host') {
+        sendToClient({ type: 'SIM_CLOSE' });
+      }
+    }
+
+    /* ==========================================================================
+       14. SAYFA YÜKLENME & URL DAVET KONTROLÜ
+       ========================================================================== */
+    window.onload = function() {
+      renderConceptCards();
+      renderHostConceptCards();
+
+      // Check if URL has ?room=XXXX invite code
+      const urlParams = new URLSearchParams(window.location.search);
+      const roomParam = urlParams.get('room');
+      if (roomParam) {
+        const cleanCode = roomParam.trim().toUpperCase();
+        const input = document.getElementById('roomCodeInput');
+        if (input) input.value = cleanCode;
+        showToast(`🔗 Davet kodu algılandı: ${cleanCode}. Bağlanılıyor...`);
+        // 500ms sonra otomatik odaya katılmayı dene
+        setTimeout(() => {
+          joinRoomByCode(cleanCode);
+        }, 500);
+      }
+    };
+  </script>
+</body>
+</html>
+`
