@@ -853,7 +853,7 @@
 
         // Sol Kanatlar (LW)
         "Eden Hazard": 5, "Robert Pires": 4, "Sadio Mane": 4, "Son Heung-min": 4, 
-        "Park Ji-sung": 3, "Cristiano Ronaldo": 4, "Marcus Rashford": 2, "Gabriel Martinelli": 2, 
+        "Park Ji-sung": 3, "Cristiano Ronaldo": 5, "Marcus Rashford": 2, "Gabriel Martinelli": 2, 
         "Luis Diaz": 3, "Thierry Henry": 5, "Jack Grealish": 2, "Andre Schürrle": 1, 
         "Leandro Trossard": 3, "Jeremy Doku": 2, "Nani": 2, "Wilfried Zaha": 1,
 
@@ -924,7 +924,7 @@
         "Roberto Firmino": 2, "Cristiano Ronaldo": 5, "Raphinha": 3,
 
         // Sağ Kanatlar (RW)
-        "Lionel Messi": 5, "Gareth Bale": 5, "Arjen Robben": 4, "Angel Di Maria": 4, 
+        "Lionel Messi": 4, "Gareth Bale": 5, "Arjen Robben": 4, "Angel Di Maria": 4, 
         "Rodrygo": 4, "Mohamed Salah": 5, "Lamine Yamal": 3, "Pedro": 2, 
         "Alexis Sanchez": 2, "Desire Doue": 2, "Marco Asensio": 1, "Tete": 0
       },
@@ -1896,14 +1896,22 @@
 
       const shuffled = [...eligiblePool].sort(() => 0.5 - Math.random());
 
-      // KURAL: 5 ve 0 ratingli oyuncular 1. teklifte çıkamaz; 1. teklif 1-4 arası ratinge sahip olmalıdır.
-      // 5 ve 0 ratingli oyuncular yalnızca 2. veya 3. teklifte gelebilir.
-      const p1Candidates = shuffled.filter(p => {
+      // KURAL: 1. teklifte öncelikle sadece 1, 2 ve 3 ratingli oyuncular çıkar (0, 4 ve 5 çıkamaz).
+      // Eğer havuzda 1-3 ratingli oyuncu kalmamışsa 4 ratingliler devreye girer (0 ve 5 yine çıkamaz).
+      const p1StrictCandidates = shuffled.filter(p => {
         const rating = getPlayerAbility(p.name, activeConceptKey);
-        return rating !== 0 && rating !== 5;
+        return rating >= 1 && rating <= 3;
       });
 
-      const p1 = (p1Candidates.length > 0 ? p1Candidates[0] : shuffled[0]) || null;
+      const p1FallbackCandidates = shuffled.filter(p => {
+        const rating = getPlayerAbility(p.name, activeConceptKey);
+        return rating >= 1 && rating <= 4;
+      });
+
+      const p1 = (p1StrictCandidates.length > 0 
+        ? p1StrictCandidates[0] 
+        : (p1FallbackCandidates.length > 0 ? p1FallbackCandidates[0] : shuffled[0])) || null;
+
       const p2Pool = shuffled.filter(p => p.name !== p1?.name);
       const p2 = p2Pool[0] || p1;
       const p3Pool = shuffled.filter(p => p.name !== p1?.name && p.name !== p2?.name);
